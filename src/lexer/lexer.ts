@@ -1,4 +1,4 @@
-import { Tokens, type Token, type TokenType } from "::token";
+import { TokenType, type Token } from "::token";
 import { isLetter, getTokenTypeFromLiteral, isDigit } from "::util";
 
 const NUL = Symbol("NUL");
@@ -18,73 +18,88 @@ export class Lexer {
   ch: string | typeof NUL = NUL;
 
   constructor(private readonly input: string) {
-    this.readChart();
+    this.readChar();
   }
 
   nextToken(): Token {
     this.skipWhitespace();
-    const token = this.getToken();
 
-    if (
-      ![Tokens.FUNCTION, Tokens.LET, Tokens.IDENT, Tokens.INT].includes(
-        token.type,
-      )
-    ) {
-      this.readChart();
-    }
-
-    return token;
-  }
-
-  private getToken(): Token {
-    const literal = this.ch;
+    let literal = this.ch;
+    let type: TokenType;
 
     switch (literal) {
-      case "=":
-        return {
-          literal,
-          type: Tokens.ASSIGN,
-        };
-      case ";":
-        return {
-          literal,
-          type: Tokens.SEMICOLON,
-        };
-      case "(":
-        return {
-          literal,
-          type: Tokens.LPAREN,
-        };
-      case ")":
-        return {
-          literal,
-          type: Tokens.RPAREN,
-        };
-      case ",":
-        return {
-          literal,
-          type: Tokens.COMMA,
-        };
-      case "+":
-        return {
-          literal,
-          type: Tokens.PLUS,
-        };
-      case "{":
-        return {
-          literal,
-          type: Tokens.LBRACE,
-        };
-      case "}":
-        return {
-          literal,
-          type: Tokens.RBRACE,
-        };
+      case "=": {
+        if (this.peekChar() === "=") {
+          this.readChar();
+          literal = `${literal}${String(this.ch)}`;
+          type = TokenType.EQ;
+        } else {
+          type = TokenType.ASSIGN;
+        }
+        break;
+      }
+      case ";": {
+        type = TokenType.SEMICOLON;
+        break;
+      }
+      case ",": {
+        type = TokenType.COMMA;
+        break;
+      }
+      case "+": {
+        type = TokenType.PLUS;
+        break;
+      }
+      case "-": {
+        type = TokenType.MINUS;
+        break;
+      }
+      case "*": {
+        type = TokenType.ASTERISK;
+        break;
+      }
+      case "/": {
+        type = TokenType.SLASH;
+        break;
+      }
+      case "!": {
+        if (this.peekChar() === "=") {
+          this.readChar();
+          literal = `${literal}${String(this.ch)}`;
+          type = TokenType.NOT_EQ;
+        } else {
+          type = TokenType.BANG;
+        }
+        break;
+      }
+      case "{": {
+        type = TokenType.LBRACE;
+        break;
+      }
+      case "}": {
+        type = TokenType.RBRACE;
+        break;
+      }
+      case "(": {
+        type = TokenType.LPAREN;
+        break;
+      }
+      case ")": {
+        type = TokenType.RPAREN;
+        break;
+      }
+      case "<": {
+        type = TokenType.LT;
+        break;
+      }
+      case ">": {
+        type = TokenType.GT;
+        break;
+      }
       case NUL: {
-        return {
-          literal: "",
-          type: Tokens.EOF,
-        };
+        literal = "";
+        type = TokenType.EOF;
+        break;
       }
       default: {
         if (isLetter(literal)) {
@@ -100,19 +115,23 @@ export class Lexer {
           const literal = this.readNumber();
           return {
             literal,
-            type: Tokens.INT,
+            type: TokenType.INT,
           };
         }
 
-        return {
-          literal,
-          type: Tokens.ILLEGAL,
-        };
+        type = TokenType.ILLEGAL;
       }
     }
+
+    this.readChar();
+
+    return {
+      literal,
+      type,
+    };
   }
 
-  private readChart(): void {
+  private readChar(): void {
     this.ch =
       this.readPosition >= this.input.length
         ? NUL
@@ -126,7 +145,7 @@ export class Lexer {
     const currentPosition = this.position;
 
     while (typeof this.ch === "string" && isLetter(this.ch)) {
-      this.readChart();
+      this.readChar();
     }
 
     return this.input.substring(currentPosition, this.position);
@@ -136,7 +155,7 @@ export class Lexer {
     const currentPosition = this.position;
 
     while (typeof this.ch === "string" && isDigit(this.ch)) {
-      this.readChart();
+      this.readChar();
     }
 
     return this.input.substring(currentPosition, this.position);
@@ -144,7 +163,11 @@ export class Lexer {
 
   private skipWhitespace(): void {
     while (typeof this.ch === "string" && /\s+/.test(this.ch)) {
-      this.readChart();
+      this.readChar();
     }
+  }
+
+  private peekChar(): string | undefined {
+    return this.input[this.readPosition];
   }
 }

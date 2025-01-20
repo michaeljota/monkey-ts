@@ -1,11 +1,9 @@
-export type TokenType = Tokens;
-
 export interface Token {
   type: TokenType;
   literal: string;
 }
 
-export enum Tokens {
+export enum TokenType {
   ILLEGAL = "ILLEGAL",
   EOF = "EOF",
   // Identifiers + literals
@@ -14,6 +12,14 @@ export enum Tokens {
   // Operators
   ASSIGN = "=",
   PLUS = "+",
+  MINUS = "-",
+  BANG = "!",
+  ASTERISK = "*",
+  SLASH = "/",
+  LT = "<",
+  GT = ">",
+  EQ = "==",
+  NOT_EQ = "!=",
   // Delimiters
   COMMA = ",",
   SEMICOLON = ";",
@@ -24,4 +30,9 @@ export enum Tokens {
   // Keywords
   FUNCTION = "FUNCTION",
   LET = "LET",
+  TRUE = "TRUE",
+  FALSE = "FALSE",
+  IF = "IF",
+  ELSE = "ELSE",
+  RETURN = "RETURN",
 }
