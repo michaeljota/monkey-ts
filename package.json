@@ -2,6 +2,10 @@
   "name": "monkey",
   "module": "index.ts",
   "type": "module",
+  "scripts": {
+    "start": "bun run index.ts",
+    "build": "bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./bin/monkey"
+  },
   "peerDependencies": {
     "typescript": "^5.7.3"
   }
