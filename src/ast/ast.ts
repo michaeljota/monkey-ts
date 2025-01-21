@@ -32,6 +32,17 @@ export class LetStatement implements Statement {
   }
 }
 
+export class ReturnStatement implements Statement {
+  type = AstStatementType.Return;
+  returnValue!: Expression;
+
+  constructor(private readonly token: Token) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+}
+
 export class Identifier implements Expression {
   type = AstExpressionType.Identifier;
   token: Token;

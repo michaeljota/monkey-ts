@@ -1,5 +1,6 @@
 export enum AstStatementType {
   Let,
+  Return,
 }
 
 export enum AstExpressionType {

@@ -1,6 +1,12 @@
 import type { Lexer } from "::lexer/lexer";
 import { TokenType, type Token } from "::token";
-import { Identifier, LetStatement, Program, type Statement } from "::ast";
+import {
+  Identifier,
+  LetStatement,
+  Program,
+  ReturnStatement,
+  type Statement,
+} from "::ast";
 
 export class Parser {
   private currentToken!: Token;
@@ -15,6 +21,22 @@ export class Parser {
   nextToken(): void {
     this.currentToken = this.peekToken;
     this.peekToken = this.lexer.nextToken();
+  }
+
+  expectPeek(tokenType: TokenType): boolean {
+    if (this.peekToken.type !== tokenType) {
+      this.addExpectedTokenTypeError(tokenType);
+      return false;
+    }
+
+    this.nextToken();
+    return true;
+  }
+
+  addExpectedTokenTypeError(tokenType: TokenType): void {
+    this.errors.push(
+      `Next token expected to be ${tokenType}, but found ${this.peekToken.type} instead`
+    );
   }
 
   parseProgram(): Program {
@@ -36,6 +58,8 @@ export class Parser {
     switch (this.currentToken.type) {
       case TokenType.LET:
         return this.parseLetStatement();
+      case TokenType.RETURN:
+        return this.parseReturnStatement();
     }
   }
 
@@ -62,19 +86,15 @@ export class Parser {
     return statement;
   }
 
-  expectPeek(tokenType: TokenType): boolean {
-    if (this.peekToken.type !== tokenType) {
-      this.addExpectedTokenTypeError(tokenType);
-      return false;
-    }
+  parseReturnStatement(): Maybe<ReturnStatement> {
+    const statement = new ReturnStatement(this.currentToken);
 
     this.nextToken();
-    return true;
-  }
 
-  addExpectedTokenTypeError(tokenType: TokenType): void {
-    this.errors.push(
-      `Next token expected to be ${tokenType}, but found ${this.peekToken.type} instead`
-    );
+    while (this.currentToken.type !== TokenType.SEMICOLON) {
+      this.nextToken();
+    }
+
+    return statement;
   }
 }

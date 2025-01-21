@@ -1,7 +1,6 @@
 import { describe, expect, it, test } from "bun:test";
-import { TokenType, type Token } from "::token";
 import { Lexer } from "::lexer/lexer";
-import { AstStatementType, LetStatement, Program, type Statement } from "::ast";
+import { AstStatementType, LetStatement, Program } from "::ast";
 import { Parser } from "./parser";
 
 describe("Parser", () => {
@@ -36,6 +35,9 @@ describe("Parser", () => {
     const parser = new Parser(lexer);
     const program = parser.parseProgram();
 
+    expect(program.statements).toHaveLength(3);
+    expect(parser.errors).toHaveLength(0);
+
     program.statements.forEach((statement, i) => {
       const expectedIdentifier = expectedIdentifiers[i];
 
@@ -66,6 +68,26 @@ describe("Parser", () => {
       const expectedToken = expectedTokens[i];
 
       expect(error).toContain(`Next token expected to be ${expectedToken},`);
+    });
+  });
+
+  it("should parse return statements", () => {
+    const input = `
+      return 1;
+      return 50;
+      return 7890;
+    `;
+
+    const lexer = new Lexer(input);
+    const parser = new Parser(lexer);
+    const program = parser.parseProgram();
+
+    expect(program.statements).toHaveLength(3);
+    expect(parser.errors).toHaveLength(0);
+
+    program.statements.forEach((statement) => {
+      expect(statement.tokenLiteral()).toBe("return");
+      expect(statement.type).toBe(AstStatementType.Return);
     });
   });
 });
