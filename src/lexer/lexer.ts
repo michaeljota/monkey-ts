@@ -167,7 +167,7 @@ export class Lexer {
     }
   }
 
-  private peekChar(): string | undefined {
+  private peekChar(): Maybe<string> {
     return this.input[this.readPosition];
   }
 }

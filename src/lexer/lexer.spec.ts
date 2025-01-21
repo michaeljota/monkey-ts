@@ -1,5 +1,5 @@
 import { expect, it, describe } from "bun:test";
-import { TokenType, type Token } from "../token/token";
+import { TokenType, type Token } from "::token";
 import { Lexer } from "./lexer";
 
 describe("Lexer", () => {

@@ -6,7 +6,10 @@
     "start": "bun run index.ts",
     "build": "bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./bin/monkey"
   },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
   "peerDependencies": {
-    "typescript": "^5.7.3"
+    "typescript": "5.7.3"
   }
 }
