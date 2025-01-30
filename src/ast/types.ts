@@ -4,6 +4,7 @@ export enum AstStatementType {
   Let,
   Return,
   Expression,
+  Block,
 }
 
 export enum AstExpressionType {
@@ -11,6 +12,10 @@ export enum AstExpressionType {
   IntegerLiteral,
   Prefix,
   Infix,
+  Boolean,
+  If,
+  Function,
+  Call,
 }
 
 export enum ExpressionPrecedence {
@@ -34,6 +39,7 @@ export const TokenOperatorPrecedences: Partial<
   [TokenType.MINUS]: ExpressionPrecedence.SUM,
   [TokenType.SLASH]: ExpressionPrecedence.PRODUCT,
   [TokenType.ASTERISK]: ExpressionPrecedence.PRODUCT,
+  [TokenType.LPAREN]: ExpressionPrecedence.CALL,
 };
 
 export interface Node {

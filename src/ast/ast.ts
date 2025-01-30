@@ -31,18 +31,14 @@ export class Program implements Node {
 export class LetStatement implements Statement {
   type = AstStatementType.Let;
   name: Identifier;
-  value!: Expression;
+  value: Expression;
 
   constructor(
     private readonly token: Token,
-    // TODO: Remove Partial after update
-    { name, value }: Partial<StatementProps<LetStatement>> = {}
+    { name, value }: StatementProps<LetStatement>
   ) {
-    this.name = name!;
-
-    if (value) {
-      this.value = value;
-    }
+    this.name = name;
+    this.value = value;
   }
 
   tokenLiteral(): string {
@@ -56,17 +52,38 @@ export class LetStatement implements Statement {
 
 export class ReturnStatement implements Statement {
   type = AstStatementType.Return;
-  returnValue!: Expression;
 
-  constructor(private readonly token: Token) {}
+  constructor(
+    private readonly token: Token,
+    readonly returnValue: Expression
+  ) {}
 
   tokenLiteral(): string {
     return this.token.literal;
   }
 
   toString(): string {
-    // TODO: Remove conditional access
-    return `${this.tokenLiteral()} ${this.returnValue ?? ""}`;
+    return `${this.tokenLiteral()} ${this.returnValue}`;
+  }
+}
+
+export class BlockStatement implements Statement {
+  type = AstStatementType.Block;
+  statements: Statement[];
+
+  constructor(
+    private readonly token: Token,
+    { statements }: StatementProps<BlockStatement>
+  ) {
+    this.statements = statements;
+  }
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return this.statements.join("");
   }
 }
 
@@ -86,8 +103,7 @@ export class ExpressionStatement implements Statement {
   }
 
   toString(): string {
-    // TODO: Remove conditional access
-    return `${this.expression ?? ""}`;
+    return `${this.expression}`;
   }
 }
 
@@ -174,5 +190,80 @@ export class InfixExpression implements Expression {
 
   toString(): string {
     return `(${this.left} ${this.operator} ${this.right})`;
+  }
+}
+
+export class BooleanLiteral implements Expression {
+  type = AstExpressionType.Boolean;
+  value: boolean;
+
+  constructor(
+    private readonly token: Token,
+    { value }: ExpressionProps<BooleanLiteral>
+  ) {
+    this.value = value;
+  }
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return this.token.literal;
+  }
+}
+
+export class IfExpression implements Expression {
+  type = AstExpressionType.If;
+
+  constructor(
+    private readonly token: Token,
+    readonly condition: Expression,
+    readonly consequence: BlockStatement,
+    readonly alternative: Maybe<BlockStatement>
+  ) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    const alternative = this.alternative ? ` else ${this.alternative}` : "";
+    return `if ${this.condition} ${this.consequence}${alternative}`;
+  }
+}
+
+export class FunctionLiteral implements Expression {
+  type = AstExpressionType.Function;
+  constructor(
+    private readonly token: Token,
+    public readonly parameters: Identifier[],
+    public readonly body: BlockStatement
+  ) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return `(${this.parameters.join(",")}) ${this.body}`;
+  }
+}
+
+export class CallExpression implements Expression {
+  type = AstExpressionType.Call;
+
+  constructor(
+    private readonly token: Token,
+    readonly functionIdentifier: Expression,
+    readonly functionArguments: Expression[]
+  ) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return `${this.functionIdentifier} (${this.functionArguments.join(", ")})`;
   }
 }

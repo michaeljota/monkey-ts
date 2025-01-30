@@ -1,9 +1,14 @@
 import type { Lexer } from "::lexer/lexer";
 import { TokenType, type Token } from "::token";
 import {
+  BlockStatement,
+  BooleanLiteral,
+  CallExpression,
   ExpressionPrecedence,
   ExpressionStatement,
+  FunctionLiteral,
   Identifier,
+  IfExpression,
   InfixExpression,
   IntegerLiteral,
   LetStatement,
@@ -48,6 +53,11 @@ export class Parser {
     this.registerPrefixParser(TokenType.INT, this.parseIntegerLiteral);
     this.registerPrefixParser(TokenType.BANG, this.parsePrefixExpression);
     this.registerPrefixParser(TokenType.MINUS, this.parsePrefixExpression);
+    this.registerPrefixParser(TokenType.TRUE, this.parseBooleanExpression);
+    this.registerPrefixParser(TokenType.FALSE, this.parseBooleanExpression);
+    this.registerPrefixParser(TokenType.LPAREN, this.parseGroupedExpression);
+    this.registerPrefixParser(TokenType.IF, this.parseIfExpression);
+    this.registerPrefixParser(TokenType.FUNCTION, this.parseFunctionLiteral);
 
     this.registerInfixParser(TokenType.EQ, this.parseInfixExpression);
     this.registerInfixParser(TokenType.NOT_EQ, this.parseInfixExpression);
@@ -57,6 +67,7 @@ export class Parser {
     this.registerInfixParser(TokenType.MINUS, this.parseInfixExpression);
     this.registerInfixParser(TokenType.SLASH, this.parseInfixExpression);
     this.registerInfixParser(TokenType.ASTERISK, this.parseInfixExpression);
+    this.registerInfixParser(TokenType.LPAREN, this.parseCallExpression);
   }
 
   nextToken(): void {
@@ -117,24 +128,37 @@ export class Parser {
       return;
     }
 
-    // TODO: Parse value
-    while (this.currentToken.type !== TokenType.SEMICOLON) {
+    this.nextToken();
+
+    const value = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+    if (!value) {
+      return;
+    }
+
+    if (this.peekToken.type === TokenType.SEMICOLON) {
       this.nextToken();
     }
 
-    return new LetStatement(tokenType, { name });
+    return new LetStatement(tokenType, { name, value });
   }
 
   parseReturnStatement(): Maybe<ReturnStatement> {
-    const statement = new ReturnStatement(this.currentToken);
+    const token = this.currentToken;
 
     this.nextToken();
 
-    while (this.currentToken.type !== TokenType.SEMICOLON) {
+    const returnValue = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+    if (!returnValue) {
+      return;
+    }
+
+    if (this.peekToken.type === TokenType.SEMICOLON) {
       this.nextToken();
     }
 
-    return statement;
+    return new ReturnStatement(token, returnValue);
   }
 
   parseExpressionStatement(): Maybe<ExpressionStatement> {
@@ -197,6 +221,175 @@ export class Parser {
 
     return new IntegerLiteral(this.currentToken, { value });
   };
+
+  parseBooleanExpression: PrefixParserFn = () => {
+    const value = this.currentToken.type === TokenType.TRUE;
+
+    return new BooleanLiteral(this.currentToken, { value });
+  };
+
+  parseGroupedExpression: PrefixParserFn = () => {
+    this.nextToken();
+    const expression = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+    if (!this.expectPeek(TokenType.RPAREN)) {
+      return;
+    }
+
+    return expression;
+  };
+
+  parseIfExpression: PrefixParserFn = () => {
+    const token = this.currentToken;
+    if (!this.expectPeek(TokenType.LPAREN)) {
+      return;
+    }
+    this.nextToken();
+    const condition = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+    if (!condition) {
+      return;
+    }
+
+    if (!this.expectPeek(TokenType.RPAREN)) {
+      return;
+    }
+
+    const consequence = this.parseBlockStatement();
+
+    if (!consequence) {
+      return;
+    }
+
+    let alternative: Maybe<BlockStatement>;
+
+    if (this.peekToken.type === TokenType.ELSE) {
+      this.nextToken();
+
+      alternative = this.parseBlockStatement();
+    }
+
+    return new IfExpression(token, condition, consequence, alternative);
+  };
+
+  parseBlockStatement(): Maybe<BlockStatement> {
+    if (!this.expectPeek(TokenType.LBRACE)) {
+      return;
+    }
+    const token = this.currentToken;
+    let statements: Statement[] = [];
+
+    this.nextToken();
+
+    while (this.currentToken.type !== TokenType.RBRACE) {
+      const statement = this.parseStatement();
+      if (statement) {
+        statements.push(statement);
+      }
+      this.nextToken();
+    }
+
+    return new BlockStatement(token, { statements });
+  }
+
+  parseFunctionLiteral: PrefixParserFn = () => {
+    const token = this.currentToken;
+
+    const parameters = this.parseFunctionParameters();
+    if (!parameters) {
+      return;
+    }
+
+    const body = this.parseBlockStatement();
+    if (!body) {
+      return;
+    }
+
+    return new FunctionLiteral(token, parameters, body);
+  };
+
+  parseFunctionParameters(): Maybe<Identifier[]> {
+    if (!this.expectPeek(TokenType.LPAREN)) {
+      return;
+    }
+
+    this.nextToken();
+
+    if (this.currentToken.type === TokenType.RPAREN) {
+      return [];
+    }
+
+    const identifiers: Identifier[] = [];
+
+    const identifier = new Identifier(this.currentToken, {
+      value: this.currentToken.literal,
+    });
+
+    identifiers.push(identifier);
+
+    while (this.peekToken.type === TokenType.COMMA) {
+      this.nextToken();
+      this.nextToken();
+
+      const identifier = new Identifier(this.currentToken, {
+        value: this.currentToken.literal,
+      });
+
+      identifiers.push(identifier);
+    }
+
+    if (!this.expectPeek(TokenType.RPAREN)) {
+      return;
+    }
+
+    return identifiers;
+  }
+
+  parseCallExpression: InfixParserFn = (functionIdentifier) => {
+    const token = this.currentToken;
+
+    const functionArguments = this.parseCallArguments();
+
+    if (!functionArguments) {
+      return;
+    }
+
+    return new CallExpression(token, functionIdentifier, functionArguments);
+  };
+
+  parseCallArguments(): Maybe<Expression[]> {
+    if (this.peekToken.type === TokenType.RPAREN) {
+      this.nextToken();
+
+      return [];
+    }
+
+    this.nextToken();
+    const callArguments: Expression[] = [];
+    const argument = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+    if (!argument) {
+      return;
+    }
+    callArguments.push(argument);
+
+    while (this.peekToken.type === TokenType.COMMA) {
+      this.nextToken();
+      this.nextToken();
+      const argument = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+      if (!argument) {
+        return;
+      }
+      callArguments.push(argument);
+    }
+
+    if (!this.expectPeek(TokenType.RPAREN)) {
+      return;
+    }
+
+    return callArguments;
+  }
 
   parsePrefixExpression: PrefixParserFn = () => {
     const currentToken = this.currentToken;
