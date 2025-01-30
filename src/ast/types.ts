@@ -28,9 +28,7 @@ export enum ExpressionPrecedence {
   CALL, // foo(x)
 }
 
-export const TokenOperatorPrecedences: Partial<
-  Record<TokenType, ExpressionPrecedence>
-> = {
+export const TokenOperatorPrecedences: Partial<Record<TokenType, ExpressionPrecedence>> = {
   [TokenType.EQ]: ExpressionPrecedence.EQUALS,
   [TokenType.NOT_EQ]: ExpressionPrecedence.EQUALS,
   [TokenType.LT]: ExpressionPrecedence.LESSGREATER,

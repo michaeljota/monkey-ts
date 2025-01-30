@@ -1,27 +1,8 @@
 import type { Token } from "::token";
-import {
-  AstExpressionType,
-  AstStatementType,
-  type Expression,
-  type Node,
-  type Statement,
-} from "./types";
+import { AstExpressionType, AstStatementType, type Expression, type Statement } from "./types";
 
-type Props<T, U> = Omit<T, keyof U>;
-type StatementProps<T extends Statement> = Props<T, Statement>;
-type ExpressionProps<T extends Expression> = Props<T, Expression>;
-
-export class Program implements Node {
-  statements: Statement[] = [];
-
-  tokenLiteral(): string {
-    const [statement] = this.statements;
-    if (!statement) {
-      return "";
-    }
-
-    return statement.tokenLiteral();
-  }
+export class Program {
+  constructor(readonly statements: Statement[]) {}
 
   toString(): string {
     return this.statements.join("");
@@ -30,16 +11,12 @@ export class Program implements Node {
 
 export class LetStatement implements Statement {
   type = AstStatementType.Let;
-  name: Identifier;
-  value: Expression;
 
   constructor(
     private readonly token: Token,
-    { name, value }: StatementProps<LetStatement>
-  ) {
-    this.name = name;
-    this.value = value;
-  }
+    readonly name: Identifier,
+    readonly value: Expression,
+  ) {}
 
   tokenLiteral(): string {
     return this.token.literal;
@@ -55,7 +32,7 @@ export class ReturnStatement implements Statement {
 
   constructor(
     private readonly token: Token,
-    readonly returnValue: Expression
+    readonly returnValue: Expression,
   ) {}
 
   tokenLiteral(): string {
@@ -69,14 +46,11 @@ export class ReturnStatement implements Statement {
 
 export class BlockStatement implements Statement {
   type = AstStatementType.Block;
-  statements: Statement[];
 
   constructor(
     private readonly token: Token,
-    { statements }: StatementProps<BlockStatement>
-  ) {
-    this.statements = statements;
-  }
+    readonly statements: Statement[],
+  ) {}
 
   tokenLiteral(): string {
     return this.token.literal;
@@ -89,14 +63,10 @@ export class BlockStatement implements Statement {
 
 export class ExpressionStatement implements Statement {
   type = AstStatementType.Expression;
-  expression: Expression;
-
   constructor(
     private readonly token: Token,
-    { expression }: StatementProps<ExpressionStatement>
-  ) {
-    this.expression = expression;
-  }
+    readonly expression: Expression,
+  ) {}
 
   tokenLiteral(): string {
     return this.token.type;
@@ -109,11 +79,10 @@ export class ExpressionStatement implements Statement {
 
 export class Identifier implements Expression {
   type = AstExpressionType.Identifier;
-  value: string;
 
   constructor(
     private readonly token: Token,
-    { value }: ExpressionProps<Identifier>
+    readonly value: string,
   ) {
     this.value = value;
   }
@@ -129,14 +98,11 @@ export class Identifier implements Expression {
 
 export class IntegerLiteral implements Expression {
   type = AstExpressionType.IntegerLiteral;
-  value: number;
 
   constructor(
     private readonly token: Token,
-    { value }: ExpressionProps<IntegerLiteral>
-  ) {
-    this.value = value;
-  }
+    readonly value: number,
+  ) {}
 
   tokenLiteral(): string {
     return this.token.literal;
@@ -149,16 +115,12 @@ export class IntegerLiteral implements Expression {
 
 export class PrefixExpression implements Expression {
   type = AstExpressionType.Prefix;
-  operator: string;
-  right: Expression;
 
   constructor(
     private readonly token: Token,
-    { operator, right }: ExpressionProps<PrefixExpression>
-  ) {
-    this.operator = operator;
-    this.right = right;
-  }
+    readonly operator: string,
+    readonly right: Expression,
+  ) {}
 
   tokenLiteral(): string {
     return this.token.literal;
@@ -171,18 +133,13 @@ export class PrefixExpression implements Expression {
 
 export class InfixExpression implements Expression {
   type = AstExpressionType.Infix;
-  operator: string;
-  right: Expression;
-  left: Expression;
 
   constructor(
     private readonly token: Token,
-    { operator, right, left }: ExpressionProps<InfixExpression>
-  ) {
-    this.operator = operator;
-    this.right = right;
-    this.left = left;
-  }
+    readonly right: Expression,
+    readonly operator: string,
+    readonly left: Expression,
+  ) {}
 
   tokenLiteral(): string {
     return this.token.literal;
@@ -195,14 +152,11 @@ export class InfixExpression implements Expression {
 
 export class BooleanLiteral implements Expression {
   type = AstExpressionType.Boolean;
-  value: boolean;
 
   constructor(
     private readonly token: Token,
-    { value }: ExpressionProps<BooleanLiteral>
-  ) {
-    this.value = value;
-  }
+    readonly value: boolean,
+  ) {}
 
   tokenLiteral(): string {
     return this.token.literal;
@@ -220,7 +174,7 @@ export class IfExpression implements Expression {
     private readonly token: Token,
     readonly condition: Expression,
     readonly consequence: BlockStatement,
-    readonly alternative: Maybe<BlockStatement>
+    readonly alternative: Maybe<BlockStatement>,
   ) {}
 
   tokenLiteral(): string {
@@ -238,7 +192,7 @@ export class FunctionLiteral implements Expression {
   constructor(
     private readonly token: Token,
     public readonly parameters: Identifier[],
-    public readonly body: BlockStatement
+    public readonly body: BlockStatement,
   ) {}
 
   tokenLiteral(): string {
@@ -256,7 +210,7 @@ export class CallExpression implements Expression {
   constructor(
     private readonly token: Token,
     readonly functionIdentifier: Expression,
-    readonly functionArguments: Expression[]
+    readonly functionArguments: Expression[],
   ) {}
 
   tokenLiteral(): string {

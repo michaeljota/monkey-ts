@@ -32,17 +32,11 @@ export class Parser {
   readonly errors: string[] = [];
 
   get currentPrecedence(): ExpressionPrecedence {
-    return (
-      TokenOperatorPrecedences[this.currentToken.type] ??
-      ExpressionPrecedence.LOWEST
-    );
+    return TokenOperatorPrecedences[this.currentToken.type] ?? ExpressionPrecedence.LOWEST;
   }
 
   get peekPrecedence(): ExpressionPrecedence {
-    return (
-      TokenOperatorPrecedences[this.peekToken.type] ??
-      ExpressionPrecedence.LOWEST
-    );
+    return TokenOperatorPrecedences[this.peekToken.type] ?? ExpressionPrecedence.LOWEST;
   }
 
   constructor(private readonly lexer: Lexer) {
@@ -78,7 +72,7 @@ export class Parser {
   expectPeek(tokenType: TokenType): boolean {
     if (this.peekToken.type !== tokenType) {
       this.errors.push(
-        `Next token expected to be ${tokenType}, but found ${this.peekToken.type} instead.`
+        `Next token expected to be ${tokenType}, but found ${this.peekToken.type} instead.`,
       );
       return false;
     }
@@ -88,18 +82,18 @@ export class Parser {
   }
 
   parseProgram(): Program {
-    const program = new Program();
+    const statements: Statement[] = [];
 
     while (this.currentToken.type !== TokenType.EOF) {
       const statement = this.parseStatement();
       if (statement) {
-        program.statements.push(statement);
+        statements.push(statement);
       }
 
       this.nextToken();
     }
 
-    return program;
+    return new Program(statements);
   }
 
   parseStatement(): Maybe<Statement> {
@@ -114,15 +108,13 @@ export class Parser {
   }
 
   parseLetStatement(): Maybe<LetStatement> {
-    const tokenType = this.currentToken;
+    const token = this.currentToken;
 
     if (!this.expectPeek(TokenType.IDENT)) {
       return;
     }
 
-    const name = new Identifier(this.currentToken, {
-      value: this.currentToken.literal,
-    });
+    const name = new Identifier(this.currentToken, this.currentToken.literal);
 
     if (!this.expectPeek(TokenType.ASSIGN)) {
       return;
@@ -140,7 +132,7 @@ export class Parser {
       this.nextToken();
     }
 
-    return new LetStatement(tokenType, { name, value });
+    return new LetStatement(token, name, value);
   }
 
   parseReturnStatement(): Maybe<ReturnStatement> {
@@ -162,7 +154,7 @@ export class Parser {
   }
 
   parseExpressionStatement(): Maybe<ExpressionStatement> {
-    const currentToken = this.currentToken;
+    const token = this.currentToken;
     const expression = this.parseExpression(ExpressionPrecedence.LOWEST);
 
     if (this.peekToken.type === TokenType.SEMICOLON) {
@@ -173,7 +165,7 @@ export class Parser {
       return;
     }
 
-    return new ExpressionStatement(currentToken, { expression });
+    return new ExpressionStatement(token, expression);
   }
 
   parseExpression(precedence: ExpressionPrecedence): Maybe<Expression> {
@@ -186,10 +178,7 @@ export class Parser {
 
     let leftExpression = prefixParser();
 
-    while (
-      this.peekToken.type !== TokenType.SEMICOLON &&
-      precedence < this.peekPrecedence
-    ) {
+    while (this.peekToken.type !== TokenType.SEMICOLON && precedence < this.peekPrecedence) {
       const infixParser = this.infixParserFns[this.peekToken.type];
 
       if (!infixParser || !leftExpression) {
@@ -205,9 +194,7 @@ export class Parser {
   }
 
   parseIdentifier: PrefixParserFn = () => {
-    return new Identifier(this.currentToken, {
-      value: this.currentToken.literal,
-    });
+    return new Identifier(this.currentToken, this.currentToken.literal);
   };
 
   parseIntegerLiteral: PrefixParserFn = () => {
@@ -219,13 +206,23 @@ export class Parser {
       return;
     }
 
-    return new IntegerLiteral(this.currentToken, { value });
+    return new IntegerLiteral(this.currentToken, value);
   };
 
   parseBooleanExpression: PrefixParserFn = () => {
-    const value = this.currentToken.type === TokenType.TRUE;
+    const value =
+      this.currentToken.type === TokenType.TRUE
+        ? true
+        : this.currentToken.type === TokenType.FALSE
+          ? false
+          : undefined;
 
-    return new BooleanLiteral(this.currentToken, { value });
+    if (value == null) {
+      this.errors.push(`Could not parse ${value} as boolean`);
+      return;
+    }
+
+    return new BooleanLiteral(this.currentToken, value);
   };
 
   parseGroupedExpression: PrefixParserFn = () => {
@@ -289,7 +286,7 @@ export class Parser {
       this.nextToken();
     }
 
-    return new BlockStatement(token, { statements });
+    return new BlockStatement(token, statements);
   }
 
   parseFunctionLiteral: PrefixParserFn = () => {
@@ -321,9 +318,7 @@ export class Parser {
 
     const identifiers: Identifier[] = [];
 
-    const identifier = new Identifier(this.currentToken, {
-      value: this.currentToken.literal,
-    });
+    const identifier = new Identifier(this.currentToken, this.currentToken.literal);
 
     identifiers.push(identifier);
 
@@ -331,9 +326,7 @@ export class Parser {
       this.nextToken();
       this.nextToken();
 
-      const identifier = new Identifier(this.currentToken, {
-        value: this.currentToken.literal,
-      });
+      const identifier = new Identifier(this.currentToken, this.currentToken.literal);
 
       identifiers.push(identifier);
     }
@@ -403,7 +396,7 @@ export class Parser {
       return;
     }
 
-    return new PrefixExpression(currentToken, { operator, right });
+    return new PrefixExpression(currentToken, operator, right);
   };
 
   parseInfixExpression: InfixParserFn = (left) => {
@@ -417,7 +410,7 @@ export class Parser {
       return;
     }
 
-    return new InfixExpression(currentToken, { operator, right, left });
+    return new InfixExpression(currentToken, right, operator, left);
   };
 
   registerPrefixParser(tokenType: TokenType, parser: PrefixParserFn) {

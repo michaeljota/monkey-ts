@@ -132,10 +132,7 @@ export class Lexer {
   }
 
   private readChar(): void {
-    this.ch =
-      this.readPosition >= this.input.length
-        ? NUL
-        : this.input[this.readPosition];
+    this.ch = this.readPosition >= this.input.length ? NUL : this.input[this.readPosition];
 
     this.position = this.readPosition;
     this.readPosition++;

@@ -106,23 +106,15 @@ describe("Parser", () => {
   });
 
   it("should create a stringify version of the tree", () => {
-    const program = new Program();
-
-    program.statements = [
+    const statements = [
       new LetStatement(
         { literal: "let", type: TokenType.LET },
-        {
-          name: new Identifier(
-            { literal: "foo", type: TokenType.IDENT },
-            { value: "foo" }
-          ),
-          value: new Identifier(
-            { literal: "50", type: TokenType.INT },
-            { value: "50" }
-          ),
-        }
+        new Identifier({ literal: "foo", type: TokenType.IDENT }, "foo"),
+        new IntegerLiteral({ literal: "50", type: TokenType.INT }, 50),
       ),
     ];
+
+    const program = new Program(statements);
 
     expect(`${program}`).toBe("let foo = 50;");
   });
@@ -141,10 +133,7 @@ describe("Parser", () => {
 
     expect(statement).toBeInstanceOf(ExpressionStatement);
 
-    testLiteralExpression(
-      (statement as ExpressionStatement).expression,
-      "foobar"
-    );
+    testLiteralExpression((statement as ExpressionStatement).expression, "foobar");
   });
 
   it("should parse integer literal expressions", () => {
@@ -212,8 +201,7 @@ describe("Parser", () => {
 
     expect(statement).toBeInstanceOf(ExpressionStatement);
 
-    const ifExpression = (statement as ExpressionStatement)
-      .expression as IfExpression;
+    const ifExpression = (statement as ExpressionStatement).expression as IfExpression;
 
     expect(ifExpression).toBeInstanceOf(IfExpression);
 
@@ -224,10 +212,7 @@ describe("Parser", () => {
 
     expect(consequenceStatement).toBeInstanceOf(ExpressionStatement);
 
-    testIdentifier(
-      (consequenceStatement as ExpressionStatement).expression,
-      "x"
-    );
+    testIdentifier((consequenceStatement as ExpressionStatement).expression, "x");
 
     expect(ifExpression.alternative).toBeUndefined();
   });
@@ -246,8 +231,7 @@ describe("Parser", () => {
 
     expect(statement).toBeInstanceOf(ExpressionStatement);
 
-    const ifExpression = (statement as ExpressionStatement)
-      .expression as IfExpression;
+    const ifExpression = (statement as ExpressionStatement).expression as IfExpression;
 
     expect(ifExpression).toBeInstanceOf(IfExpression);
 
@@ -258,17 +242,11 @@ describe("Parser", () => {
 
     expect(consequenceStatement).toBeInstanceOf(ExpressionStatement);
 
-    testIdentifier(
-      (consequenceStatement as ExpressionStatement).expression,
-      "x"
-    );
+    testIdentifier((consequenceStatement as ExpressionStatement).expression, "x");
 
     expect(ifExpression.alternative?.statements).toHaveLength(1);
     const [alternativeStatement] = ifExpression.alternative?.statements ?? [];
-    testIdentifier(
-      (alternativeStatement as ExpressionStatement).expression,
-      "y"
-    );
+    testIdentifier((alternativeStatement as ExpressionStatement).expression, "y");
   });
 
   it("should parse function literal expressions", () => {
@@ -285,8 +263,7 @@ describe("Parser", () => {
 
     expect(statement).toBeInstanceOf(ExpressionStatement);
 
-    const functionLiteral = (statement as ExpressionStatement)
-      .expression as FunctionLiteral;
+    const functionLiteral = (statement as ExpressionStatement).expression as FunctionLiteral;
 
     expect(functionLiteral).toBeInstanceOf(FunctionLiteral);
 
@@ -296,8 +273,7 @@ describe("Parser", () => {
     testLiteralExpression(functionLiteral.parameters[1], "y");
 
     expect(functionLiteral.body.statements).toHaveLength(1);
-    const bodyExpression = functionLiteral.body
-      .statements[0] as ExpressionStatement;
+    const bodyExpression = functionLiteral.body.statements[0] as ExpressionStatement;
 
     testInfixExpression(bodyExpression.expression, "x", "+", "y");
   });
@@ -310,17 +286,14 @@ describe("Parser", () => {
     parser.parseProgram();
 
     expect(parser.errors).not.toBeEmpty();
-    expect(parser.errors).toContain(
-      "Next token expected to be ), but found { instead."
-    );
+    expect(parser.errors).toContain("Next token expected to be ), but found { instead.");
   });
 
-  const extendedFunctionTestCases: [input: string, expectedParams: string[]][] =
-    [
-      ["fn() {};", []],
-      ["fn(x) {};", ["x"]],
-      ["fn(x, y) {};", ["x", "y"]],
-    ];
+  const extendedFunctionTestCases: [input: string, expectedParams: string[]][] = [
+    ["fn() {};", []],
+    ["fn(x) {};", ["x"]],
+    ["fn(x, y) {};", ["x", "y"]],
+  ];
 
   extendedFunctionTestCases.forEach(([input, expectedParams]) => {
     it(`should parse function ${input} with arguments ${expectedParams}`, () => {
@@ -335,15 +308,14 @@ describe("Parser", () => {
 
       expect(statement).toBeInstanceOf(ExpressionStatement);
 
-      const functionLiteral = (statement as ExpressionStatement)
-        .expression as FunctionLiteral;
+      const functionLiteral = (statement as ExpressionStatement).expression as FunctionLiteral;
 
       expect(functionLiteral).toBeInstanceOf(FunctionLiteral);
 
       expect(functionLiteral.parameters).toBeArrayOfSize(expectedParams.length);
 
       functionLiteral.parameters.forEach((param, i) =>
-        testLiteralExpression(param, expectedParams.at(i))
+        testLiteralExpression(param, expectedParams.at(i)),
       );
     });
   });
@@ -361,8 +333,7 @@ describe("Parser", () => {
 
     expect(statement).toBeInstanceOf(ExpressionStatement);
 
-    const callExpression = (statement as ExpressionStatement)
-      .expression as CallExpression;
+    const callExpression = (statement as ExpressionStatement).expression as CallExpression;
 
     testIdentifier(callExpression.functionIdentifier, "add");
 
@@ -393,23 +364,17 @@ describe("Parser", () => {
 
       expect(statement).toBeInstanceOf(ExpressionStatement);
 
-      const prefixExpression = (statement as ExpressionStatement)
-        .expression as PrefixExpression;
+      const prefixExpression = (statement as ExpressionStatement).expression as PrefixExpression;
 
       expect(prefixExpression).toBeInstanceOf(PrefixExpression);
 
       expect(prefixExpression.operator).toBe(operator);
 
       testLiteralExpression(prefixExpression.right, value);
-    })
+    }),
   );
 
-  const binaryTestCases: [
-    input: string,
-    left: unknown,
-    operator: string,
-    right: unknown
-  ][] = [
+  const binaryTestCases: [input: string, left: unknown, operator: string, right: unknown][] = [
     ["1 + 5", 1, "+", 5],
     ["2 - 5", 2, "-", 5],
     ["3 * 5", 3, "*", 5],
@@ -439,7 +404,7 @@ describe("Parser", () => {
       const { expression } = statement as ExpressionStatement;
 
       testInfixExpression(expression, left, operator, right);
-    })
+    }),
   );
 
   const precedenceGroupingTesting: [input: string, expected: string][] = [
@@ -484,14 +449,11 @@ describe("Parser", () => {
 
       expect(parser.errors).toBeEmpty();
       expect(`${program}`).toBe(expected);
-    })
+    }),
   );
 });
 
-const testLiteralExpression = (
-  expression: Expression,
-  value: unknown
-): void => {
+const testLiteralExpression = (expression: Expression, value: unknown): void => {
   switch (typeof value) {
     case "number": {
       return testIntegerLiteral(expression, value);
@@ -536,7 +498,7 @@ export const testInfixExpression = (
   expression: Expression,
   left: unknown,
   operator: string,
-  right: unknown
+  right: unknown,
 ): void => {
   const infixExpression = expression as InfixExpression;
 
