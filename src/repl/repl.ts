@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { Lexer } from "::lexer/lexer";
-import { TokenType } from "::token";
+import { Parser } from "::parser";
 
 export async function start() {
   const rl = createInterface({ input, output });
@@ -14,13 +14,30 @@ export async function start() {
       break;
     }
 
-    const l = new Lexer(line);
-    let token = l.nextToken();
+    const lexer = new Lexer(line);
+    const parser = new Parser(lexer);
+    const program = parser.parseProgram();
 
-    while (token.type !== TokenType.EOF) {
-      console.log(token);
-      token = l.nextToken();
+    if (parser.errors.length) {
+      console.log(`
+            __,__
+   .--.  .-"     "-.  .--.
+  / .. \\/  .-. .-.  \\/ .. \\
+ | |  '|  /   Y   \\  |'  | |
+ | \\   \\  \\ 0 | 0 /  /   / |
+  \\ '- ,\\.-"""""""-./, -' /
+   ''-' /_   ^ ^   _\\ '-''
+       |  \\._   _./  |
+       \\   \\ '~' /   /
+        '._ '-=-' _.'
+           '-----'
+`);
+      console.log("Woops! We ran into some monkey business here!");
+      console.log("Parse error:", parser.errors.join("\n"));
+      continue;
     }
+
+    console.log(`${program}`);
   }
 
   rl.close();
