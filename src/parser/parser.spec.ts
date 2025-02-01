@@ -123,7 +123,7 @@ describe("Parser", () => {
   it("should parse identifier expressions", () => {
     const input = `foobar;`;
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     testLiteralExpression(statement.expression, "foobar");
   });
@@ -131,7 +131,7 @@ describe("Parser", () => {
   it("should parse integer literal expressions", () => {
     const input = `5;`;
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     testLiteralExpression(statement.expression, 5);
   });
@@ -139,7 +139,7 @@ describe("Parser", () => {
   it("should parse boolean literal true expressions", () => {
     const input = `true;`;
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     testLiteralExpression(statement.expression, true);
   });
@@ -147,7 +147,7 @@ describe("Parser", () => {
   it("should parse boolean literal false expressions", () => {
     const input = `false;`;
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     testLiteralExpression(statement.expression, false);
   });
@@ -155,7 +155,7 @@ describe("Parser", () => {
   it("should parse if expressions", () => {
     const input = `if (x < y) { x }`;
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     const ifExpression = getTestedExpression(statement.expression, IfExpression);
 
@@ -178,7 +178,7 @@ describe("Parser", () => {
   it("should parse if-else expressions", () => {
     const input = `if (x < y) { x } else { y }`;
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     const ifExpression = getTestedExpression(statement.expression, IfExpression);
 
@@ -208,7 +208,7 @@ describe("Parser", () => {
   it("should parse function literal expressions", () => {
     const input = `fn(x,y) { x + y }`;
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     const functionLiteral = getTestedExpression(statement.expression, FunctionLiteral);
 
@@ -245,7 +245,7 @@ describe("Parser", () => {
   extendedFunctionTestCases.forEach(([input, expectedParams]) => {
     it(`should parse function ${input} with arguments ${expectedParams}`, () => {
       const [parser, program] = setupProgram(input);
-      const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+      const statement = getTestedBaseStatement(parser, program);
 
       const functionLiteral = getTestedExpression(statement.expression, FunctionLiteral);
 
@@ -260,7 +260,7 @@ describe("Parser", () => {
   it("should parse call expressions", () => {
     const input = "add(1, 2 * 3, 4 + 5);";
     const [parser, program] = setupProgram(input);
-    const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+    const statement = getTestedBaseStatement(parser, program);
 
     const callExpression = getTestedExpression(statement.expression, CallExpression);
 
@@ -283,7 +283,7 @@ describe("Parser", () => {
   unaryTestCases.forEach(([input, operator, value]) =>
     it(`should parse unary operations ${input}`, () => {
       const [parser, program] = setupProgram(input);
-      const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+      const statement = getTestedBaseStatement(parser, program);
 
       const prefixExpression = getTestedExpression(statement.expression, PrefixExpression);
 
@@ -309,7 +309,7 @@ describe("Parser", () => {
   binaryTestCases.forEach(([input, left, operator, right]) =>
     it(`should parse binary operation ${input}`, () => {
       const [parser, program] = setupProgram(input);
-      const statement = getTestedBaseStatement(parser, program, ExpressionStatement);
+      const statement = getTestedBaseStatement(parser, program);
 
       testInfixExpression(statement.expression, left, operator, right);
     }),
@@ -408,19 +408,15 @@ const testInfixExpression = (
   testLiteralExpression(infixExpression.right, right);
 };
 
-const getTestedBaseStatement = <S extends Statement>(
-  parser: Parser,
-  program: Program,
-  statementClass: new (...args: any[]) => S,
-): S => {
+const getTestedBaseStatement = (parser: Parser, program: Program): ExpressionStatement => {
   expect(parser.errors).toBeEmpty();
   expect(program.statements).toBeArrayOfSize(1);
 
   const [statement] = program.statements;
 
-  expect(statement).toBeInstanceOf(statementClass);
+  expect(statement).toBeInstanceOf(ExpressionStatement);
 
-  return statement as S;
+  return statement as ExpressionStatement;
 };
 
 const getTestedExpression = <E extends Expression>(

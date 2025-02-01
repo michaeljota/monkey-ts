@@ -1,8 +1,30 @@
 import type { Token } from "::token";
-import { AstExpressionType, AstStatementType, type Expression, type Statement } from "./types";
+import {
+  AstExpressionType,
+  AstProgramType,
+  AstStatementType,
+  type Expression,
+  type Statement,
+} from "./types";
+
+export type NodeUnion = Program | ExpressionUnion | StatementUnion;
+
+export type ExpressionUnion =
+  | BooleanLiteral
+  | CallExpression
+  | FunctionLiteral
+  | Identifier
+  | IfExpression
+  | InfixExpression
+  | IntegerLiteral
+  | PrefixExpression;
+
+export type StatementUnion = BlockStatement | ExpressionStatement | LetStatement | ReturnStatement;
 
 export class Program {
-  constructor(readonly statements: Statement[]) {}
+  readonly type = AstProgramType.Program;
+
+  constructor(readonly statements: StatementUnion[]) {}
 
   toString(): string {
     return this.statements.join("");
@@ -10,12 +32,12 @@ export class Program {
 }
 
 export class LetStatement implements Statement {
-  type = AstStatementType.Let;
+  readonly type = AstStatementType.Let;
 
   constructor(
     private readonly token: Token,
     readonly name: Identifier,
-    readonly value: Expression,
+    readonly value: ExpressionUnion,
   ) {}
 
   tokenLiteral(): string {
@@ -28,11 +50,11 @@ export class LetStatement implements Statement {
 }
 
 export class ReturnStatement implements Statement {
-  type = AstStatementType.Return;
+  readonly type = AstStatementType.Return;
 
   constructor(
     private readonly token: Token,
-    readonly returnValue: Expression,
+    readonly returnValue: ExpressionUnion,
   ) {}
 
   tokenLiteral(): string {
@@ -45,11 +67,11 @@ export class ReturnStatement implements Statement {
 }
 
 export class BlockStatement implements Statement {
-  type = AstStatementType.Block;
+  readonly type = AstStatementType.Block;
 
   constructor(
     private readonly token: Token,
-    readonly statements: Statement[],
+    readonly statements: StatementUnion[],
   ) {}
 
   tokenLiteral(): string {
@@ -62,10 +84,11 @@ export class BlockStatement implements Statement {
 }
 
 export class ExpressionStatement implements Statement {
-  type = AstStatementType.Expression;
+  readonly type = AstStatementType.Expression;
+
   constructor(
     private readonly token: Token,
-    readonly expression: Expression,
+    readonly expression: ExpressionUnion,
   ) {}
 
   tokenLiteral(): string {
@@ -78,7 +101,7 @@ export class ExpressionStatement implements Statement {
 }
 
 export class Identifier implements Expression {
-  type = AstExpressionType.Identifier;
+  readonly type = AstExpressionType.Identifier;
 
   constructor(
     private readonly token: Token,
@@ -97,7 +120,7 @@ export class Identifier implements Expression {
 }
 
 export class IntegerLiteral implements Expression {
-  type = AstExpressionType.IntegerLiteral;
+  readonly type = AstExpressionType.IntegerLiteral;
 
   constructor(
     private readonly token: Token,
@@ -114,12 +137,12 @@ export class IntegerLiteral implements Expression {
 }
 
 export class PrefixExpression implements Expression {
-  type = AstExpressionType.Prefix;
+  readonly type = AstExpressionType.Prefix;
 
   constructor(
     private readonly token: Token,
     readonly operator: string,
-    readonly right: Expression,
+    readonly right: ExpressionUnion,
   ) {}
 
   tokenLiteral(): string {
@@ -132,13 +155,13 @@ export class PrefixExpression implements Expression {
 }
 
 export class InfixExpression implements Expression {
-  type = AstExpressionType.Infix;
+  readonly type = AstExpressionType.Infix;
 
   constructor(
     private readonly token: Token,
-    readonly right: Expression,
+    readonly right: ExpressionUnion,
     readonly operator: string,
-    readonly left: Expression,
+    readonly left: ExpressionUnion,
   ) {}
 
   tokenLiteral(): string {
@@ -151,7 +174,7 @@ export class InfixExpression implements Expression {
 }
 
 export class BooleanLiteral implements Expression {
-  type = AstExpressionType.Boolean;
+  readonly type = AstExpressionType.Boolean;
 
   constructor(
     private readonly token: Token,
@@ -168,11 +191,11 @@ export class BooleanLiteral implements Expression {
 }
 
 export class IfExpression implements Expression {
-  type = AstExpressionType.If;
+  readonly type = AstExpressionType.If;
 
   constructor(
     private readonly token: Token,
-    readonly condition: Expression,
+    readonly condition: ExpressionUnion,
     readonly consequence: BlockStatement,
     readonly alternative: Maybe<BlockStatement>,
   ) {}
@@ -188,7 +211,8 @@ export class IfExpression implements Expression {
 }
 
 export class FunctionLiteral implements Expression {
-  type = AstExpressionType.Function;
+  readonly type = AstExpressionType.Function;
+
   constructor(
     private readonly token: Token,
     public readonly parameters: Identifier[],
@@ -205,12 +229,12 @@ export class FunctionLiteral implements Expression {
 }
 
 export class CallExpression implements Expression {
-  type = AstExpressionType.Call;
+  readonly type = AstExpressionType.Call;
 
   constructor(
     private readonly token: Token,
-    readonly functionIdentifier: Expression,
-    readonly functionArguments: Expression[],
+    readonly functionIdentifier: ExpressionUnion,
+    readonly functionArguments: ExpressionUnion[],
   ) {}
 
   tokenLiteral(): string {

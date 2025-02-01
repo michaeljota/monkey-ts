@@ -18,6 +18,10 @@ export enum AstExpressionType {
   Call,
 }
 
+export enum AstProgramType {
+  Program,
+}
+
 export enum ExpressionPrecedence {
   LOWEST,
   EQUALS, // ==
@@ -45,19 +49,9 @@ export interface Node {
 }
 
 export interface Statement extends Node {
-  type: AstStatementType;
+  readonly type: AstStatementType;
 }
 
 export interface Expression extends Node {
-  type: AstExpressionType;
+  readonly type: AstExpressionType;
 }
-
-export interface PrefixParserFn {
-  (): Maybe<Expression>;
-}
-
-export interface InfixParserFn {
-  (leftSideExpression: Expression): Maybe<Expression>;
-}
-
-export type TokenTypeDictionary<T> = Partial<Record<TokenType, T>>;

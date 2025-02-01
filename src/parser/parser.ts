@@ -16,12 +16,11 @@ import {
   Program,
   ReturnStatement,
   TokenOperatorPrecedences,
-  type Expression,
-  type InfixParserFn,
-  type PrefixParserFn,
-  type Statement,
-  type TokenTypeDictionary,
+  type ExpressionUnion,
+  type StatementUnion,
 } from "::ast";
+
+import type { TokenTypeDictionary, PrefixParserFn, InfixParserFn } from "./types";
 
 export class Parser {
   private currentToken!: Token;
@@ -82,7 +81,7 @@ export class Parser {
   }
 
   parseProgram(): Program {
-    const statements: Statement[] = [];
+    const statements: StatementUnion[] = [];
 
     while (this.currentToken.type !== TokenType.EOF) {
       const statement = this.parseStatement();
@@ -96,7 +95,7 @@ export class Parser {
     return new Program(statements);
   }
 
-  parseStatement(): Maybe<Statement> {
+  parseStatement(): Maybe<StatementUnion> {
     switch (this.currentToken.type) {
       case TokenType.LET:
         return this.parseLetStatement();
@@ -168,7 +167,7 @@ export class Parser {
     return new ExpressionStatement(token, expression);
   }
 
-  parseExpression(precedence: ExpressionPrecedence): Maybe<Expression> {
+  parseExpression(precedence: ExpressionPrecedence): Maybe<ExpressionUnion> {
     const prefixParser = this.prefixParserFns[this.currentToken.type];
 
     if (!prefixParser) {
@@ -274,7 +273,7 @@ export class Parser {
       return;
     }
     const token = this.currentToken;
-    let statements: Statement[] = [];
+    let statements: StatementUnion[] = [];
 
     this.nextToken();
 
@@ -350,7 +349,7 @@ export class Parser {
     return new CallExpression(token, functionIdentifier, functionArguments);
   };
 
-  parseCallArguments(): Maybe<Expression[]> {
+  parseCallArguments(): Maybe<ExpressionUnion[]> {
     if (this.peekToken.type === TokenType.RPAREN) {
       this.nextToken();
 
@@ -358,7 +357,7 @@ export class Parser {
     }
 
     this.nextToken();
-    const callArguments: Expression[] = [];
+    const callArguments: ExpressionUnion[] = [];
     const argument = this.parseExpression(ExpressionPrecedence.LOWEST);
 
     if (!argument) {
