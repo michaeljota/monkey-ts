@@ -1,25 +1,25 @@
 import { TokenType } from "::token";
 
 export enum AstStatementType {
-  Let,
-  Return,
-  Expression,
-  Block,
+  Let = "Let",
+  Return = "Return",
+  Expression = "Expression",
+  Block = "Block",
 }
 
 export enum AstExpressionType {
-  Identifier,
-  IntegerLiteral,
-  Prefix,
-  Infix,
-  Boolean,
-  If,
-  Function,
-  Call,
+  Identifier = "Identifier",
+  Integer = "Integer",
+  Prefix = "Prefix",
+  Infix = "Infix",
+  Boolean = "Boolean",
+  If = "If",
+  Function = "Function",
+  Call = "Call",
 }
 
 export enum AstProgramType {
-  Program,
+  Program = "Program",
 }
 
 export enum ExpressionPrecedence {

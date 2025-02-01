@@ -120,7 +120,7 @@ export class Identifier implements Expression {
 }
 
 export class IntegerLiteral implements Expression {
-  readonly type = AstExpressionType.IntegerLiteral;
+  readonly type = AstExpressionType.Integer;
 
   constructor(
     private readonly token: Token,
