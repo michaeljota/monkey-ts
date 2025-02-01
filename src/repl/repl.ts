@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
+import { evaluate } from "::evaluator/evaluator";
 
 export async function start() {
   const rl = createInterface({ input, output });
@@ -37,7 +38,13 @@ export async function start() {
       continue;
     }
 
-    console.log(`${program}`);
+    const evaluated = evaluate(program);
+
+    if (!evaluated) {
+      continue;
+    }
+
+    console.log(`${evaluated}`);
   }
 
   rl.close();
