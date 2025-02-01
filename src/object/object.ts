@@ -1,5 +1,7 @@
 import { ObjectType, type BaseObject } from "./types";
 
+export type ObjectUnion = Integer | Boolean | Null;
+
 export class Integer implements BaseObject {
   readonly type = ObjectType.INTEGER;
 
@@ -22,4 +24,8 @@ export class Boolean implements BaseObject {
 
 export class Null implements BaseObject {
   readonly type = ObjectType.NULL;
+
+  toString(): string {
+    return "NULL";
+  }
 }
