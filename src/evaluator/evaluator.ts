@@ -2,10 +2,12 @@ import {
   AstExpressionType,
   AstProgramType,
   AstStatementType,
+  IfExpression,
   type NodeUnion,
   type StatementUnion,
 } from "::ast";
-import { Boolean, Integer, Null, ObjectType, type ObjectUnion } from "::object";
+import { Integer, ObjectType, type ObjectUnion } from "::object";
+import { FALSE, NULL, TRUE } from "./staticValues";
 
 export const evaluate = (node: NodeUnion): ObjectUnion => {
   switch (node.type) {
@@ -14,6 +16,9 @@ export const evaluate = (node: NodeUnion): ObjectUnion => {
     }
     case AstStatementType.Expression: {
       return evaluate(node.expression);
+    }
+    case AstStatementType.Block: {
+      return evaluateStatements(node.statements);
     }
     case AstExpressionType.Integer: {
       return new Integer(node.value);
@@ -32,6 +37,9 @@ export const evaluate = (node: NodeUnion): ObjectUnion => {
 
       return evaluateInfixExpression(left, node.operator, right);
     }
+    case AstExpressionType.If: {
+      return evaluateIfExpression(node);
+    }
     default: {
       return NULL;
     }
@@ -47,10 +55,6 @@ const evaluateStatements = (statements: StatementUnion[]): ObjectUnion => {
 
   return result;
 };
-
-const TRUE = new Boolean(true);
-const FALSE = new Boolean(false);
-const NULL = new Null();
 
 const nativeBoolToBooleanObject = (input: boolean) => (input ? TRUE : FALSE);
 
@@ -147,4 +151,15 @@ const evaluateIntegerInfixExpression = (
     default:
       return NULL;
   }
+};
+
+const evaluateIfExpression = (node: IfExpression) => {
+  const condition = evaluate(node.condition);
+  if (condition != NULL && condition != FALSE) {
+    return evaluate(node.consequence);
+  }
+  if (node.alternative) {
+    return evaluate(node.alternative);
+  }
+  return NULL;
 };

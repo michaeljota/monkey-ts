@@ -5,6 +5,7 @@ import { Parser } from "::parser";
 import { Boolean, Integer, type BaseObject } from "::object";
 
 import { evaluate } from "./evaluator";
+import { NULL } from "./staticValues";
 
 const setupEvaluator = (input: string): BaseObject => {
   const lexer = new Lexer(input);
@@ -87,6 +88,28 @@ describe("Evaluator", () => {
       testBooleanObject(evaluated, expected);
     }),
   );
+
+  const ifExpressionTestCases: [input: string, expected: number | undefined][] = [
+    ["if (true) { 10 }", 10],
+    ["if (false) { 10 }", undefined],
+    ["if (1) { 10 }", 10],
+    ["if (1 < 2) { 10 }", 10],
+    ["if (1 > 2) { 10 }", undefined],
+    ["if (1 > 2) { 10 } else { 20 }", 20],
+    ["if (1 < 2) { 10 } else { 20 }", 10],
+  ];
+
+  ifExpressionTestCases.forEach(([input, expected]) =>
+    it(`should evaluate if expression input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      if (expected) {
+        testIntegerObject(evaluated, expected);
+        return;
+      }
+      testNullObject(evaluated);
+    }),
+  );
 });
 
 const testIntegerObject = (evaluated: BaseObject, expected: number): void => {
@@ -97,4 +120,8 @@ const testIntegerObject = (evaluated: BaseObject, expected: number): void => {
 const testBooleanObject = (evaluated: BaseObject, expected: boolean): void => {
   expect(evaluated).toBeInstanceOf(Boolean);
   expect((evaluated as Boolean).value).toBe(expected);
+};
+
+const testNullObject = (evaluated: BaseObject): void => {
+  expect(evaluated).toBe(NULL);
 };
