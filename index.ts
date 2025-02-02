@@ -6,10 +6,7 @@ function main() {
 
   const username = userInfo.username ?? "Unknown";
 
-  console.log(`Hello ${username}! This is the Monkey programming language!`);
-  console.log("Feel free to type in commands\n");
-
-  start();
+  start(username);
 }
 
 main();

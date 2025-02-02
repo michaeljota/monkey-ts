@@ -4,14 +4,20 @@ import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
 import { evaluate } from "::evaluator/evaluator";
 
-export async function start() {
+export async function start(username: string) {
   const rl = createInterface({ input, output });
 
+  rl.write(`Hello ${username}! This is the Monkey programming language!`);
+  rl.write("\n");
+  rl.write("Feel free to type in commands\n");
+  rl.write("\n");
+  
   while (true) {
     const line = await rl.question(">> ");
-
+    
     if (!line) {
-      console.log("Bye!!!");
+      rl.write("Bye!!!");
+      rl.write("\n");
       break;
     }
 
@@ -20,7 +26,7 @@ export async function start() {
     const program = parser.parseProgram();
 
     if (parser.errors.length) {
-      console.log(`
+      rl.write(`
             __,__
    .--.  .-"     "-.  .--.
   / .. \\/  .-. .-.  \\/ .. \\
@@ -33,8 +39,9 @@ export async function start() {
         '._ '-=-' _.'
            '-----'
 `);
-      console.log("Woops! We ran into some monkey business here!");
-      console.log("Parse error:", parser.errors.join("\n"));
+      rl.write("Woops! We ran into some monkey business here!");
+      rl.write("\n");
+      rl.write(`Parse error: ${parser.errors.join("\n")}`);
       continue;
     }
 
@@ -44,7 +51,8 @@ export async function start() {
       continue;
     }
 
-    console.log(`${evaluated}`);
+    rl.write(`${evaluated}`);
+    rl.write("\n");
   }
 
   rl.close();
