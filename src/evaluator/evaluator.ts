@@ -3,22 +3,27 @@ import {
   AstProgramType,
   AstStatementType,
   IfExpression,
+  Program,
   type NodeUnion,
   type StatementUnion,
 } from "::ast";
-import { Integer, ObjectType, type ObjectUnion } from "::object";
+import { Integer, ObjectType, Return, type ObjectUnion } from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
 
 export const evaluate = (node: NodeUnion): ObjectUnion => {
   switch (node.type) {
     case AstProgramType.Program: {
-      return evaluateStatements(node.statements);
+      return evaluateProgram(node);
     }
     case AstStatementType.Expression: {
       return evaluate(node.expression);
     }
     case AstStatementType.Block: {
-      return evaluateStatements(node.statements);
+      return evaluateBlockStatements(node.statements);
+    }
+    case AstStatementType.Return: {
+      const evaluated = evaluate(node.returnValue);
+      return new Return(evaluated);
     }
     case AstExpressionType.Integer: {
       return new Integer(node.value);
@@ -46,12 +51,30 @@ export const evaluate = (node: NodeUnion): ObjectUnion => {
   }
 };
 
-const evaluateStatements = (statements: StatementUnion[]): ObjectUnion => {
+const evaluateProgram = (program: Program): ObjectUnion => {
   let result: ObjectUnion = NULL;
 
-  statements.forEach((statement) => {
+  for (const statement of program.statements) {
     result = evaluate(statement);
-  });
+
+    if (result instanceof Return) {
+      return result.value;
+    }
+  }
+
+  return result;
+};
+
+const evaluateBlockStatements = (statements: StatementUnion[]): ObjectUnion => {
+  let result: ObjectUnion = NULL;
+
+  for (const statement of statements) {
+    result = evaluate(statement);
+
+    if (result instanceof Return) {
+      return result;
+    }
+  }
 
   return result;
 };
