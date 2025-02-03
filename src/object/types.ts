@@ -3,6 +3,7 @@ export enum ObjectType {
   BOOLEAN = "BOOLEAN",
   NULL = "NULL",
   RETURN = "RETURN",
+  ERROR = "ERROR",
 }
 
 export interface BaseObject {

@@ -7,7 +7,7 @@ import {
   type NodeUnion,
   type StatementUnion,
 } from "::ast";
-import { Integer, ObjectType, Return, type ObjectUnion } from "::object";
+import { Error, Integer, ObjectType, Return, type ObjectUnion } from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
 
 export const evaluate = (node: NodeUnion): ObjectUnion => {
@@ -23,6 +23,9 @@ export const evaluate = (node: NodeUnion): ObjectUnion => {
     }
     case AstStatementType.Return: {
       const evaluated = evaluate(node.returnValue);
+      if (evaluated instanceof Error) {
+        return evaluated;
+      }
       return new Return(evaluated);
     }
     case AstExpressionType.Integer: {
@@ -33,12 +36,20 @@ export const evaluate = (node: NodeUnion): ObjectUnion => {
     }
     case AstExpressionType.Prefix: {
       const right = evaluate(node.right);
-
+      if (right instanceof Error) {
+        return right;
+      }
       return evaluatePrefixExpression(node.operator, right);
     }
     case AstExpressionType.Infix: {
       const right = evaluate(node.right);
+      if (right instanceof Error) {
+        return right;
+      }
       const left = evaluate(node.left);
+      if (left instanceof Error) {
+        return left;
+      }
 
       return evaluateInfixExpression(left, node.operator, right);
     }
@@ -60,6 +71,9 @@ const evaluateProgram = (program: Program): ObjectUnion => {
     if (result instanceof Return) {
       return result.value;
     }
+    if (result instanceof Error) {
+      return result;
+    }
   }
 
   return result;
@@ -71,7 +85,7 @@ const evaluateBlockStatements = (statements: StatementUnion[]): ObjectUnion => {
   for (const statement of statements) {
     result = evaluate(statement);
 
-    if (result instanceof Return) {
+    if (result instanceof Return || result instanceof Error) {
       return result;
     }
   }
@@ -90,7 +104,7 @@ const evaluatePrefixExpression = (operator: string, right: ObjectUnion): ObjectU
       return evaluateMinusPrefixOperator(right);
     }
     default:
-      return NULL;
+      return new Error(`Unknown operator: ${operator}${right.type}`);
   }
 };
 
@@ -113,7 +127,7 @@ const evaluateBangOperator = (right: ObjectUnion): ObjectUnion => {
 
 const evaluateMinusPrefixOperator = (right: ObjectUnion): ObjectUnion => {
   if (right.type !== ObjectType.INTEGER) {
-    return NULL;
+    return new Error(`Unknown operator: -${right.type}`);
   }
 
   return new Integer(-right.value);
@@ -124,6 +138,9 @@ const evaluateInfixExpression = (
   operator: string,
   right: ObjectUnion,
 ): ObjectUnion => {
+  if (left.type !== right.type) {
+    return new Error(`Unexpected type on operation: ${left.type} ${operator} ${right.type}`);
+  }
   if (left.type === ObjectType.INTEGER && right.type === ObjectType.INTEGER) {
     return evaluateIntegerInfixExpression(left, operator, right);
   }
@@ -134,7 +151,7 @@ const evaluateInfixExpression = (
     return nativeBoolToBooleanObject(left != right);
   }
 
-  return NULL;
+  return new Error(`Unknown operator: ${left.type} ${operator} ${right.type}`);
 };
 
 const evaluateIntegerInfixExpression = (
@@ -172,12 +189,15 @@ const evaluateIntegerInfixExpression = (
     }
 
     default:
-      return NULL;
+      return new Error(`Unknown operator: ${left.type} ${operator} ${right.type}`);
   }
 };
 
 const evaluateIfExpression = (node: IfExpression) => {
   const condition = evaluate(node.condition);
+  if (condition instanceof Error) {
+    return condition;
+  }
   if (condition != NULL && condition != FALSE) {
     return evaluate(node.consequence);
   }

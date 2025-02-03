@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
-import { Boolean, Integer, type BaseObject } from "::object";
+import { Boolean, Error, Integer, type BaseObject } from "::object";
 
 import { evaluate } from "./evaluator";
 import { NULL } from "./staticValues";
@@ -124,6 +124,28 @@ describe("Evaluator", () => {
       const evaluated = setupEvaluator(input);
 
       testIntegerObject(evaluated, expected);
+    }),
+  );
+
+  const errorTestCases: [input: string, expectedMessage: string][] = [
+    ["5 + true;", "Unexpected type on operation: INTEGER + BOOLEAN"],
+    ["5 + true; 5;", "Unexpected type on operation: INTEGER + BOOLEAN"],
+    ["-true", "Unknown operator: -BOOLEAN"],
+    ["true + false;", "Unknown operator: BOOLEAN + BOOLEAN"],
+    ["5; true + false; 5", "Unknown operator: BOOLEAN + BOOLEAN"],
+    ["if (10 > 1) { true + false; }", "Unknown operator: BOOLEAN + BOOLEAN"],
+    [
+      `if (10 > 1) { if (10 > 1) { return true + false; } return 1; }`,
+      "Unknown operator: BOOLEAN + BOOLEAN",
+    ],
+  ];
+
+  errorTestCases.forEach(([input, expected]) =>
+    it(`should evaluate return statement input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      expect(evaluated).toBeInstanceOf(Error);
+      expect((evaluated as Error).message).toBe(expected);
     }),
   );
 });

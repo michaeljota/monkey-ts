@@ -1,6 +1,6 @@
 import { ObjectType, type BaseObject } from "./types";
 
-export type ObjectUnion = Integer | Boolean | Null | Return;
+export type ObjectUnion = Integer | Boolean | Null | Return | Error;
 
 export class Integer implements BaseObject {
   readonly type = ObjectType.INTEGER;
@@ -37,5 +37,15 @@ export class Return implements BaseObject {
 
   toString(): string {
     return `${this.value}`;
+  }
+}
+
+export class Error implements BaseObject {
+  readonly type = ObjectType.ERROR;
+
+  constructor(readonly message: string) {}
+
+  toString(): string {
+    return `ERROR: ${this.message}`;
   }
 }
