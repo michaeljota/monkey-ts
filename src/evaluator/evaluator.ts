@@ -4,10 +4,19 @@ import {
   AstStatementType,
   IfExpression,
   Program,
+  type ExpressionUnion,
   type NodeUnion,
   type StatementUnion,
 } from "::ast";
-import { Environment, Error, Integer, ObjectType, Return, type ObjectUnion } from "::object";
+import {
+  Environment,
+  Error,
+  Function,
+  Integer,
+  ObjectType,
+  Return,
+  type ObjectUnion,
+} from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
 
 export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion => {
@@ -69,6 +78,21 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
         return new Error(`Identifier not found: ${node.value}`);
       }
       return value;
+    }
+    case AstExpressionType.Function: {
+      return new Function(node.parameters, node.body, environment);
+    }
+    case AstExpressionType.Call: {
+      const value = evaluate(node.functionIdentifier, environment);
+      if (value instanceof Error) {
+        return value;
+      }
+      const params = evaluateExpressions(node.functionArguments, environment);
+      if (params instanceof Error) {
+        return params;
+      }
+
+      return evaluateFunction(value, params);
     }
     default: {
       return NULL;
@@ -222,4 +246,37 @@ const evaluateIfExpression = (node: IfExpression, environment: Environment) => {
     return evaluate(node.alternative, environment);
   }
   return NULL;
+};
+
+const evaluateExpressions = (
+  expressions: ExpressionUnion[],
+  environment: Environment,
+): Error | ObjectUnion[] => {
+  const res: ObjectUnion[] = [];
+  for (const exp of expressions) {
+    const value = evaluate(exp, environment);
+    if (value instanceof Error) {
+      return value;
+    }
+    res.push(value);
+  }
+  return res;
+};
+
+const evaluateFunction = (fn: ObjectUnion, params: ObjectUnion[]): ObjectUnion => {
+  if (!(fn instanceof Function)) {
+    return new Error(`Not a function: ${fn}`);
+  }
+  const initialStore = fn.params.reduce(
+    (store: Record<string, ObjectUnion>, { value }, i) => ({ ...store, [value]: params[i] }),
+    {},
+  );
+  const env = new Environment(initialStore, fn.env);
+  const evaluated = evaluate(fn.body, env);
+
+  if (evaluated instanceof Return) {
+    return evaluated.value;
+  }
+
+  return evaluated;
 };

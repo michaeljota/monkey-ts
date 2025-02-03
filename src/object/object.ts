@@ -1,6 +1,8 @@
+import type { BlockStatement, Identifier } from "::ast";
 import { ObjectType, type BaseObject } from "./types";
+import type { Environment } from "./environment";
 
-export type ObjectUnion = Integer | Boolean | Null | Return | Error;
+export type ObjectUnion = Integer | Boolean | Null | Return | Error | Function;
 
 export class Integer implements BaseObject {
   readonly type = ObjectType.INTEGER;
@@ -47,5 +49,24 @@ export class Error implements BaseObject {
 
   toString(): string {
     return `ERROR: ${this.message}`;
+  }
+}
+
+export class Function implements BaseObject {
+  readonly type = ObjectType.FUNCTION;
+
+  constructor(
+    readonly params: Identifier[],
+    readonly body: BlockStatement,
+    readonly env: Environment,
+  ) {}
+
+  toString(): string {
+    // prettier-ignore
+    return (
+`fn (${this.params.join(",")}) {
+  ${this.body}
+}`
+    );
   }
 }

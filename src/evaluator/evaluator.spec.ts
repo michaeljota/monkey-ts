@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
-import { Boolean, Environment, Error, Integer, type BaseObject } from "::object";
+import { Boolean, Environment, Error, Function, Integer, type BaseObject } from "::object";
 
 import { evaluate } from "./evaluator";
 import { NULL } from "./staticValues";
@@ -159,7 +159,50 @@ describe("Evaluator", () => {
   ];
 
   letStatementsTestCases.forEach(([input, expected]) =>
-    it.only(`should evaluate return statement input (${input}) to ${expected}`, () => {
+    it(`should evaluate return statement input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      testIntegerObject(evaluated, expected);
+    }),
+  );
+
+  const functionTestCases: [input: string, expectedParams: string[], expectedBody: string][] = [
+    ["fn(x) { x + 2 }", ["x"], "(x + 2)"],
+    ["fn(x, y) { x + y }", ["x", "y"], "(x + y)"],
+  ];
+
+  functionTestCases.forEach(([input, expectedParams, expectedBody]) =>
+    it(`should evaluate function input (${input}) to params: ${expectedParams}, and body: ${expectedBody}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      expect(evaluated).toBeInstanceOf(Function);
+      const functionEval = evaluated as Function;
+      expect(functionEval.params).toHaveLength(expectedParams.length);
+      expect(`${functionEval.params.join(",")}`).toBe(expectedParams.join(","));
+      expect(`${functionEval.body}`).toBe(expectedBody);
+    }),
+  );
+
+  const functionApplicationTestCases: [input: string, expected: number][] = [
+    ["let identity = fn(x) { x; }; identity(5);", 5],
+    ["let identity = fn(x) { return x; }; identity(5);", 5],
+    ["let double  = fn(x) { x * 2; }; double(5);", 10],
+    ["let add = fn(x, y) { x + y; }; add(5, 5);", 10],
+    ["let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20],
+    ["fn(x) { x; }(5)", 5],
+    [
+      `
+let newAdder = fn(x) {
+fn(y) { x + y };
+};
+let addTwo = newAdder(2);
+addTwo(2);`,
+      4,
+    ],
+  ];
+
+  functionApplicationTestCases.forEach(([input, expected]) =>
+    it(`should evaluate function input (${input}) to ${expected}`, () => {
       const evaluated = setupEvaluator(input);
 
       testIntegerObject(evaluated, expected);

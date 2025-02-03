@@ -4,6 +4,7 @@ export enum ObjectType {
   NULL = "NULL",
   RETURN = "RETURN",
   ERROR = "ERROR",
+  FUNCTION = "FUNCTION",
 }
 
 export interface BaseObject {
