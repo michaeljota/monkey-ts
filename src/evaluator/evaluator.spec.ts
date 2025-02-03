@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
-import { Boolean, Error, Integer, type BaseObject } from "::object";
+import { Boolean, Environment, Error, Integer, type BaseObject } from "::object";
 
 import { evaluate } from "./evaluator";
 import { NULL } from "./staticValues";
@@ -11,7 +11,8 @@ const setupEvaluator = (input: string): BaseObject => {
   const lexer = new Lexer(input);
   const parser = new Parser(lexer);
   const program = parser.parseProgram();
-  return evaluate(program);
+  const environment = new Environment();
+  return evaluate(program, environment);
 };
 
 describe("Evaluator", () => {
@@ -138,6 +139,7 @@ describe("Evaluator", () => {
       `if (10 > 1) { if (10 > 1) { return true + false; } return 1; }`,
       "Unknown operator: BOOLEAN + BOOLEAN",
     ],
+    ["foobar", "Identifier not found: foobar"],
   ];
 
   errorTestCases.forEach(([input, expected]) =>
@@ -146,6 +148,21 @@ describe("Evaluator", () => {
 
       expect(evaluated).toBeInstanceOf(Error);
       expect((evaluated as Error).message).toBe(expected);
+    }),
+  );
+
+  const letStatementsTestCases: [input: string, expected: number][] = [
+    ["let  a  =  5;  a;", 5],
+    ["let  a  =  5  *  5;  a;", 25],
+    ["let  a  =  5;  let  b  =  a;  b;", 5],
+    ["let  a  =  5;  let  b  =  a;  let  c  =  a  +  b  +  5;  c;", 15],
+  ];
+
+  letStatementsTestCases.forEach(([input, expected]) =>
+    it.only(`should evaluate return statement input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      testIntegerObject(evaluated, expected);
     }),
   );
 });

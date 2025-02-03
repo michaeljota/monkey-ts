@@ -3,18 +3,20 @@ import { stdin as input, stdout as output } from "node:process";
 import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
 import { evaluate } from "::evaluator/evaluator";
+import { Environment } from "::object";
 
 export async function start(username: string) {
   const rl = createInterface({ input, output });
+  const environment = new Environment();
 
   rl.write(`Hello ${username}! This is the Monkey programming language!`);
   rl.write("\n");
   rl.write("Feel free to type in commands\n");
   rl.write("\n");
-  
+
   while (true) {
     const line = await rl.question(">> ");
-    
+
     if (!line) {
       rl.write("Bye!!!");
       rl.write("\n");
@@ -45,7 +47,7 @@ export async function start(username: string) {
       continue;
     }
 
-    const evaluated = evaluate(program);
+    const evaluated = evaluate(program, environment);
 
     if (!evaluated) {
       continue;

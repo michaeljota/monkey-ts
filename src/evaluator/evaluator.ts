@@ -7,26 +7,34 @@ import {
   type NodeUnion,
   type StatementUnion,
 } from "::ast";
-import { Error, Integer, ObjectType, Return, type ObjectUnion } from "::object";
+import { Environment, Error, Integer, ObjectType, Return, type ObjectUnion } from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
 
-export const evaluate = (node: NodeUnion): ObjectUnion => {
+export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion => {
   switch (node.type) {
     case AstProgramType.Program: {
-      return evaluateProgram(node);
+      return evaluateProgram(node, environment);
     }
     case AstStatementType.Expression: {
-      return evaluate(node.expression);
+      return evaluate(node.expression, environment);
     }
     case AstStatementType.Block: {
-      return evaluateBlockStatements(node.statements);
+      return evaluateBlockStatements(node.statements, environment);
     }
     case AstStatementType.Return: {
-      const evaluated = evaluate(node.returnValue);
+      const evaluated = evaluate(node.returnValue, environment);
       if (evaluated instanceof Error) {
         return evaluated;
       }
       return new Return(evaluated);
+    }
+    case AstStatementType.Let: {
+      const value = evaluate(node.value, environment);
+      if (value instanceof Error) {
+        return value;
+      }
+      environment.set(node.name.value, value);
+      return NULL;
     }
     case AstExpressionType.Integer: {
       return new Integer(node.value);
@@ -35,26 +43,32 @@ export const evaluate = (node: NodeUnion): ObjectUnion => {
       return nativeBoolToBooleanObject(node.value);
     }
     case AstExpressionType.Prefix: {
-      const right = evaluate(node.right);
+      const right = evaluate(node.right, environment);
       if (right instanceof Error) {
         return right;
       }
       return evaluatePrefixExpression(node.operator, right);
     }
     case AstExpressionType.Infix: {
-      const right = evaluate(node.right);
+      const right = evaluate(node.right, environment);
       if (right instanceof Error) {
         return right;
       }
-      const left = evaluate(node.left);
+      const left = evaluate(node.left, environment);
       if (left instanceof Error) {
         return left;
       }
-
       return evaluateInfixExpression(left, node.operator, right);
     }
     case AstExpressionType.If: {
-      return evaluateIfExpression(node);
+      return evaluateIfExpression(node, environment);
+    }
+    case AstExpressionType.Identifier: {
+      const value = environment.get(node.value);
+      if (value == null) {
+        return new Error(`Identifier not found: ${node.value}`);
+      }
+      return value;
     }
     default: {
       return NULL;
@@ -62,11 +76,11 @@ export const evaluate = (node: NodeUnion): ObjectUnion => {
   }
 };
 
-const evaluateProgram = (program: Program): ObjectUnion => {
+const evaluateProgram = (program: Program, environment: Environment): ObjectUnion => {
   let result: ObjectUnion = NULL;
 
   for (const statement of program.statements) {
-    result = evaluate(statement);
+    result = evaluate(statement, environment);
 
     if (result instanceof Return) {
       return result.value;
@@ -79,11 +93,14 @@ const evaluateProgram = (program: Program): ObjectUnion => {
   return result;
 };
 
-const evaluateBlockStatements = (statements: StatementUnion[]): ObjectUnion => {
+const evaluateBlockStatements = (
+  statements: StatementUnion[],
+  environment: Environment,
+): ObjectUnion => {
   let result: ObjectUnion = NULL;
 
   for (const statement of statements) {
-    result = evaluate(statement);
+    result = evaluate(statement, environment);
 
     if (result instanceof Return || result instanceof Error) {
       return result;
@@ -172,7 +189,7 @@ const evaluateIntegerInfixExpression = (
       return new Integer(leftValue * rightValue);
     }
     case "/": {
-      return new Integer(leftValue / rightValue);
+      return new Integer(Math.floor(leftValue / rightValue));
     }
 
     case "<": {
@@ -193,16 +210,16 @@ const evaluateIntegerInfixExpression = (
   }
 };
 
-const evaluateIfExpression = (node: IfExpression) => {
-  const condition = evaluate(node.condition);
+const evaluateIfExpression = (node: IfExpression, environment: Environment) => {
+  const condition = evaluate(node.condition, environment);
   if (condition instanceof Error) {
     return condition;
   }
   if (condition != NULL && condition != FALSE) {
-    return evaluate(node.consequence);
+    return evaluate(node.consequence, environment);
   }
   if (node.alternative) {
-    return evaluate(node.alternative);
+    return evaluate(node.alternative, environment);
   }
   return NULL;
 };
