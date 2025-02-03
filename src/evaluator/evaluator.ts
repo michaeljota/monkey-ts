@@ -2,6 +2,7 @@ import {
   AstExpressionType,
   AstProgramType,
   AstStatementType,
+  Identifier,
   IfExpression,
   Program,
   type ExpressionUnion,
@@ -9,6 +10,7 @@ import {
   type StatementUnion,
 } from "::ast";
 import {
+  Builtin,
   Environment,
   Error,
   Function,
@@ -19,6 +21,20 @@ import {
   type ObjectUnion,
 } from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
+
+const Builtins: Readonly<Record<string, Builtin>> = {
+  len: new Builtin((...params) => {
+    if (params.length > 1) {
+      return new Error(`Wrong number of arguments. Expected: 1. Got: ${params.length}`);
+    }
+    const [param] = params;
+    if (param.type !== ObjectType.STRING) {
+      return new Error(`Unexpected type passed to "len" builtin. Param: ${param.type}`);
+    }
+
+    return new Integer(param.value.length);
+  }),
+};
 
 export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion => {
   switch (node.type) {
@@ -77,11 +93,7 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
       return evaluateIfExpression(node, environment);
     }
     case AstExpressionType.Identifier: {
-      const value = environment.get(node.value);
-      if (value == null) {
-        return new Error(`Identifier not found: ${node.value}`);
-      }
-      return value;
+      return evaluateIdentifier(node, environment);
     }
     case AstExpressionType.Function: {
       return new Function(node.parameters, node.body, environment);
@@ -266,6 +278,18 @@ const evaluateIfExpression = (node: IfExpression, environment: Environment) => {
   return NULL;
 };
 
+const evaluateIdentifier = (node: Identifier, environment: Environment) => {
+  const value = environment.get(node.value);
+  if (value != null) {
+    return value;
+  }
+  const builtin = Builtins[node.value];
+  if (builtin != null) {
+    return builtin;
+  }
+  return new Error(`Identifier not found: ${node.value}`);
+};
+
 const evaluateExpressions = (
   expressions: ExpressionUnion[],
   environment: Environment,
@@ -282,19 +306,24 @@ const evaluateExpressions = (
 };
 
 const evaluateFunction = (fn: ObjectUnion, params: ObjectUnion[]): ObjectUnion => {
-  if (!(fn instanceof Function)) {
-    return new Error(`Not a function: ${fn}`);
-  }
-  const initialStore = fn.params.reduce(
-    (store: Record<string, ObjectUnion>, { value }, i) => ({ ...store, [value]: params[i] }),
-    {},
-  );
-  const env = new Environment(initialStore, fn.env);
-  const evaluated = evaluate(fn.body, env);
+  if (fn instanceof Function) {
+    const initialStore = fn.params.reduce(
+      (store: Record<string, ObjectUnion>, { value }, i) => ({ ...store, [value]: params[i] }),
+      {},
+    );
+    const env = new Environment(initialStore, fn.env);
+    const evaluated = evaluate(fn.body, env);
 
-  if (evaluated instanceof Return) {
-    return evaluated.value;
+    if (evaluated instanceof Return) {
+      return evaluated.value;
+    }
+
+    return evaluated;
   }
 
-  return evaluated;
+  if (fn instanceof Builtin) {
+    return fn.fn(...params);
+  }
+
+  return new Error(`Not a function: ${fn}`);
 };

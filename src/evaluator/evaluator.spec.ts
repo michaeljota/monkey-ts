@@ -230,6 +230,34 @@ addTwo(2);`,
       testIntegerObject(evaluated, expected);
     }),
   );
+
+  const builtinFunctionTestCases: [input: string, expected: unknown][] = [
+    [`len("")`, 0],
+    [`len("four")`, 4],
+    [`len("hello world")`, 11],
+    [`len(1)`, "Unexpected type passed to \"len\" builtin. Param: INTEGER"],
+    [`len("one", "two")`, "Wrong number of arguments. Expected: 1. Got: 2"],
+  ];
+
+  builtinFunctionTestCases.forEach(([input, expected]) =>
+    it(`should call builtin function: input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      switch (typeof expected) {
+        case "number":
+          testIntegerObject(evaluated, expected);
+          return;
+
+        case "string": {
+          expect(evaluated).toBeInstanceOf(Error);
+          expect((evaluated as Error).message).toBe(expected);
+          return;
+        }
+        default:
+          break;
+      }
+    }),
+  );
 });
 
 const testIntegerObject = (evaluated: BaseObject, expected: number): void => {

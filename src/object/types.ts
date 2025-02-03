@@ -6,6 +6,7 @@ export enum ObjectType {
   RETURN = "RETURN",
   ERROR = "ERROR",
   FUNCTION = "FUNCTION",
+  BUILTIN = "BUILTIN",
 }
 
 export interface BaseObject {

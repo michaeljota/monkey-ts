@@ -2,7 +2,9 @@ import type { BlockStatement, Identifier } from "::ast";
 import { ObjectType, type BaseObject } from "./types";
 import type { Environment } from "./environment";
 
-export type ObjectUnion = Integer | Boolean | Null | Return | Error | Function | String;
+export type ObjectUnion = Integer | Boolean | Null | Return | Error | Function | String | Builtin;
+
+export type BuiltinFunction = (...params: ObjectUnion[]) => ObjectUnion;
 
 export class Integer implements BaseObject {
   readonly type = ObjectType.INTEGER;
@@ -78,5 +80,15 @@ export class Function implements BaseObject {
   ${this.body}
 }`
     );
+  }
+}
+
+export class Builtin implements BaseObject {
+  readonly type = ObjectType.BUILTIN;
+
+  constructor(readonly fn: BuiltinFunction) {}
+
+  toString(): string {
+    return "[builtin function]";
   }
 }
