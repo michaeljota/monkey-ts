@@ -15,6 +15,7 @@ import {
   Integer,
   ObjectType,
   Return,
+  String,
   type ObjectUnion,
 } from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
@@ -47,6 +48,9 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
     }
     case AstExpressionType.Integer: {
       return new Integer(node.value);
+    }
+    case AstExpressionType.String: {
+      return new String(node.value);
     }
     case AstExpressionType.Boolean: {
       return nativeBoolToBooleanObject(node.value);
@@ -185,6 +189,9 @@ const evaluateInfixExpression = (
   if (left.type === ObjectType.INTEGER && right.type === ObjectType.INTEGER) {
     return evaluateIntegerInfixExpression(left, operator, right);
   }
+  if (left.type === ObjectType.STRING && right.type === ObjectType.STRING) {
+    return evaluateStringInfixExpression(left, operator, right);
+  }
   if (operator === "==") {
     return nativeBoolToBooleanObject(left == right);
   }
@@ -232,6 +239,17 @@ const evaluateIntegerInfixExpression = (
     default:
       return new Error(`Unknown operator: ${left.type} ${operator} ${right.type}`);
   }
+};
+
+const evaluateStringInfixExpression = (
+  left: String,
+  operator: string,
+  right: String,
+): ObjectUnion => {
+  if (operator !== "+") {
+    return new Error(`Unknown operator: ${left.type} ${operator} ${right.type}`);
+  }
+  return new String(`${left.value}${right.value}`);
 };
 
 const evaluateIfExpression = (node: IfExpression, environment: Environment) => {

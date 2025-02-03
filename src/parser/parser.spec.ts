@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Lexer } from "::lexer/lexer";
 import {
+  AstExpressionType,
   AstStatementType,
   BooleanLiteral,
   CallExpression,
@@ -13,7 +14,9 @@ import {
   LetStatement,
   PrefixExpression,
   Program,
+  StringLiteral,
   type Expression,
+  type ExpressionUnion,
   type Statement,
 } from "::ast";
 import { TokenType } from "::token";
@@ -134,6 +137,14 @@ describe("Parser", () => {
     const statement = getTestedBaseStatement(parser, program);
 
     testLiteralExpression(statement.expression, 5);
+  });
+
+  it("should parse string literal expressions", () => {
+    const input = `"hello world";`;
+    const [parser, program] = setupProgram(input);
+    const statement = getTestedBaseStatement(parser, program);
+
+    testLiteralExpression(statement.expression, "hello world");
   });
 
   it("should parse boolean literal true expressions", () => {
@@ -359,16 +370,19 @@ describe("Parser", () => {
   );
 });
 
-const testLiteralExpression = (expression: Expression, value: unknown): void => {
-  switch (typeof value) {
-    case "number": {
+const testLiteralExpression = (expression: ExpressionUnion, value: any): void => {
+  switch (expression.type) {
+    case AstExpressionType.Integer: {
       return testIntegerLiteral(expression, value);
     }
-    case "string": {
+    case AstExpressionType.Identifier: {
       return testIdentifier(expression, value);
     }
-    case "boolean": {
+    case AstExpressionType.Boolean: {
       return testBooleanLiteral(expression, value);
+    }
+    case AstExpressionType.String: {
+      return testStringLiteral(expression, value);
     }
     default: {
       throw new Error(`Unsupported 'expected' type: ${typeof value}`);
@@ -380,6 +394,12 @@ const testIntegerLiteral = (expression: Expression, value: number): void => {
   const integerLiteral = getTestedExpression(expression, IntegerLiteral);
   expect(integerLiteral.value).toBe(value);
   expect(integerLiteral.tokenLiteral()).toBe(`${value}`);
+};
+
+const testStringLiteral = (expression: Expression, value: string): void => {
+  const stringLiteral = getTestedExpression(expression, StringLiteral);
+  expect(stringLiteral.value).toBe(value);
+  expect(stringLiteral.tokenLiteral()).toBe(`${value}`);
 };
 
 const testIdentifier = (expression: Expression, value: string): void => {

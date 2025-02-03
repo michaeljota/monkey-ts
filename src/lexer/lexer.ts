@@ -96,6 +96,11 @@ export class Lexer {
         type = TokenType.GT;
         break;
       }
+      case '"': {
+        type = TokenType.STRING;
+        literal = this.readString();
+        break;
+      }
       case NUL: {
         literal = "";
         type = TokenType.EOF;
@@ -166,5 +171,16 @@ export class Lexer {
 
   private peekChar(): Maybe<string> {
     return this.input[this.readPosition];
+  }
+
+  private readString(): string {
+    this.readChar();
+    const currentPosition = this.position;
+
+    while (this.ch !== '"') {
+      this.readChar();
+    }
+
+    return this.input.substring(currentPosition, this.position);
   }
 }

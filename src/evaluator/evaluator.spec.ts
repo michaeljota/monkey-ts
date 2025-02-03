@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
-import { Boolean, Environment, Error, Function, Integer, type BaseObject } from "::object";
+import { Boolean, Environment, Error, Function, Integer, String, type BaseObject } from "::object";
 
 import { evaluate } from "./evaluator";
 import { NULL } from "./staticValues";
@@ -41,6 +41,27 @@ describe("Evaluator", () => {
       testIntegerObject(evaluated, expected);
     }),
   );
+
+  const stringTestCases: [input: string, expected: string][] = [
+    ['"Hello world!"', "Hello world!"],
+    [`"Hello" + " " + "world!"`, "Hello world!"],
+    [
+      `let hello = "Hello";
+      let world = "world!";
+      hello + " " + world;
+      `,
+      "Hello world!",
+    ],
+  ];
+
+  stringTestCases.forEach(([input, expected]) => {
+    it(`should evaluate string input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      expect(evaluated).toBeInstanceOf(String);
+      expect((evaluated as String).value).toBe(expected);
+    });
+  });
 
   const booleanTestCases: [input: string, expected: boolean][] = [
     ["true", true],
@@ -140,6 +161,7 @@ describe("Evaluator", () => {
       "Unknown operator: BOOLEAN + BOOLEAN",
     ],
     ["foobar", "Identifier not found: foobar"],
+    ['"Hello" - "world"', "Unknown operator: STRING - STRING"],
   ];
 
   errorTestCases.forEach(([input, expected]) =>

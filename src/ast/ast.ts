@@ -17,7 +17,8 @@ export type ExpressionUnion =
   | IfExpression
   | InfixExpression
   | IntegerLiteral
-  | PrefixExpression;
+  | PrefixExpression
+  | StringLiteral;
 
 export type StatementUnion = BlockStatement | ExpressionStatement | LetStatement | ReturnStatement;
 
@@ -133,6 +134,23 @@ export class IntegerLiteral implements Expression {
 
   toString(): string {
     return this.tokenLiteral();
+  }
+}
+
+export class StringLiteral implements Expression {
+  readonly type = AstExpressionType.String;
+
+  constructor(
+    private readonly token: Token,
+    readonly value: string,
+  ) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return this.token.literal;
   }
 }
 

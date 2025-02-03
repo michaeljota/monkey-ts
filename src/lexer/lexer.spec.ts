@@ -25,6 +25,9 @@ describe("Lexer", () => {
     10 == 10;
 
     10 != 9;
+
+    "foobar";
+    "foo bar";
     `;
 
     const expectedTokens: Token[] = [
@@ -100,6 +103,10 @@ describe("Lexer", () => {
       { type: TokenType.INT, literal: "10" },
       { type: TokenType.NOT_EQ, literal: "!=" },
       { type: TokenType.INT, literal: "9" },
+      { type: TokenType.SEMICOLON, literal: ";" },
+      { type: TokenType.STRING, literal: "foobar" },
+      { type: TokenType.SEMICOLON, literal: ";" },
+      { type: TokenType.STRING, literal: "foo bar" },
       { type: TokenType.SEMICOLON, literal: ";" },
       { type: TokenType.EOF, literal: "" },
     ];

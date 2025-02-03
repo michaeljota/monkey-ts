@@ -16,6 +16,7 @@ export enum AstExpressionType {
   If = "If",
   Function = "Function",
   Call = "Call",
+  String = "String",
 }
 
 export enum AstProgramType {

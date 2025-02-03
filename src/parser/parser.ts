@@ -15,6 +15,7 @@ import {
   PrefixExpression,
   Program,
   ReturnStatement,
+  StringLiteral,
   TokenOperatorPrecedences,
   type ExpressionUnion,
   type StatementUnion,
@@ -44,6 +45,7 @@ export class Parser {
 
     this.registerPrefixParser(TokenType.IDENT, this.parseIdentifier);
     this.registerPrefixParser(TokenType.INT, this.parseIntegerLiteral);
+    this.registerPrefixParser(TokenType.STRING, this.parseStringLiteral);
     this.registerPrefixParser(TokenType.BANG, this.parsePrefixExpression);
     this.registerPrefixParser(TokenType.MINUS, this.parsePrefixExpression);
     this.registerPrefixParser(TokenType.TRUE, this.parseBooleanExpression);
@@ -206,6 +208,10 @@ export class Parser {
     }
 
     return new IntegerLiteral(this.currentToken, value);
+  };
+
+  parseStringLiteral: PrefixParserFn = () => {
+    return new StringLiteral(this.currentToken, this.currentToken.literal);
   };
 
   parseBooleanExpression: PrefixParserFn = () => {
