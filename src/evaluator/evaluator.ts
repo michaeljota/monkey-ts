@@ -10,6 +10,7 @@ import {
   type StatementUnion,
 } from "::ast";
 import {
+  Array,
   Builtin,
   Environment,
   Error,
@@ -21,20 +22,7 @@ import {
   type ObjectUnion,
 } from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
-
-const Builtins: Readonly<Record<string, Builtin>> = {
-  len: new Builtin((...params) => {
-    if (params.length > 1) {
-      return new Error(`Wrong number of arguments. Expected: 1. Got: ${params.length}`);
-    }
-    const [param] = params;
-    if (param.type !== ObjectType.STRING) {
-      return new Error(`Unexpected type passed to "len" builtin. Param: ${param.type}`);
-    }
-
-    return new Integer(param.value.length);
-  }),
-};
+import { Builtins } from "./buildins";
 
 export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion => {
   switch (node.type) {
@@ -68,6 +56,13 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
     case AstExpressionType.String: {
       return new String(node.value);
     }
+    case AstExpressionType.Array: {
+      const elements = evaluateExpressions(node.elements, environment);
+      if (elements instanceof Error) {
+        return elements;
+      }
+      return new Array(elements);
+    }
     case AstExpressionType.Boolean: {
       return nativeBoolToBooleanObject(node.value);
     }
@@ -79,13 +74,13 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
       return evaluatePrefixExpression(node.operator, right);
     }
     case AstExpressionType.Infix: {
-      const right = evaluate(node.right, environment);
-      if (right instanceof Error) {
-        return right;
-      }
       const left = evaluate(node.left, environment);
       if (left instanceof Error) {
         return left;
+      }
+      const right = evaluate(node.right, environment);
+      if (right instanceof Error) {
+        return right;
       }
       return evaluateInfixExpression(left, node.operator, right);
     }
@@ -109,6 +104,17 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
       }
 
       return evaluateFunction(value, params);
+    }
+    case AstExpressionType.Index: {
+      const left = evaluate(node.left, environment);
+      if (left instanceof Error) {
+        return left;
+      }
+      const index = evaluate(node.index, environment);
+      if (left instanceof Error) {
+        return left;
+      }
+      return evaluateIndexExpression(left, index);
     }
     default: {
       return NULL;
@@ -326,4 +332,21 @@ const evaluateFunction = (fn: ObjectUnion, params: ObjectUnion[]): ObjectUnion =
   }
 
   return new Error(`Not a function: ${fn}`);
+};
+
+const evaluateIndexExpression = (left: ObjectUnion, index: ObjectUnion): ObjectUnion => {
+  if (left.type !== ObjectType.ARRAY) {
+    return new Error(`Index access not supported: ${left.type}`);
+  }
+  if (index.type !== ObjectType.INTEGER) {
+    return new Error(`Invalid index: ${index.type}`);
+  }
+
+  const element = left.elements.at(index.value);
+  if (!element) {
+    return new Error(
+      `Index access out of bounds. Index: ${index.value}. Array len: ${left.elements.length}`,
+    );
+  }
+  return element;
 };

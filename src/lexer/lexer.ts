@@ -88,6 +88,14 @@ export class Lexer {
         type = TokenType.RPAREN;
         break;
       }
+      case "[": {
+        type = TokenType.LBRACKET;
+        break;
+      }
+      case "]": {
+        type = TokenType.RBRACKET;
+        break;
+      }
       case "<": {
         type = TokenType.LT;
         break;

@@ -17,6 +17,8 @@ export enum AstExpressionType {
   Function = "Function",
   Call = "Call",
   String = "String",
+  Array = "Array",
+  Index = "Index",
 }
 
 export enum AstProgramType {
@@ -31,6 +33,7 @@ export enum ExpressionPrecedence {
   PRODUCT, // *
   PREFIX, // -X or !X,
   CALL, // foo(x)
+  INDEX,
 }
 
 export const TokenOperatorPrecedences: Partial<Record<TokenType, ExpressionPrecedence>> = {
@@ -43,6 +46,7 @@ export const TokenOperatorPrecedences: Partial<Record<TokenType, ExpressionPrece
   [TokenType.SLASH]: ExpressionPrecedence.PRODUCT,
   [TokenType.ASTERISK]: ExpressionPrecedence.PRODUCT,
   [TokenType.LPAREN]: ExpressionPrecedence.CALL,
+  [TokenType.LBRACKET]: ExpressionPrecedence.INDEX,
 };
 
 export interface Node {

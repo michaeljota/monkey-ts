@@ -10,11 +10,13 @@ import {
 export type NodeUnion = Program | ExpressionUnion | StatementUnion;
 
 export type ExpressionUnion =
+  | ArrayLiteral
   | BooleanLiteral
   | CallExpression
   | FunctionLiteral
   | Identifier
   | IfExpression
+  | IndexExpression
   | InfixExpression
   | IntegerLiteral
   | PrefixExpression
@@ -151,6 +153,41 @@ export class StringLiteral implements Expression {
 
   toString(): string {
     return this.token.literal;
+  }
+}
+
+export class ArrayLiteral implements Expression {
+  readonly type = AstExpressionType.Array;
+
+  constructor(
+    private readonly token: Token,
+    readonly elements: ExpressionUnion[],
+  ) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return `[${this.elements.join(",")}]`;
+  }
+}
+
+export class IndexExpression implements Expression {
+  readonly type = AstExpressionType.Index;
+
+  constructor(
+    private readonly token: Token,
+    readonly left: ExpressionUnion,
+    readonly index: ExpressionUnion,
+  ) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return `(${this.left}[${this.index}])`;
   }
 }
 

@@ -1,6 +1,7 @@
 import type { Lexer } from "::lexer/lexer";
 import { TokenType, type Token } from "::token";
 import {
+  ArrayLiteral,
   BlockStatement,
   BooleanLiteral,
   CallExpression,
@@ -9,6 +10,7 @@ import {
   FunctionLiteral,
   Identifier,
   IfExpression,
+  IndexExpression,
   InfixExpression,
   IntegerLiteral,
   LetStatement,
@@ -53,6 +55,7 @@ export class Parser {
     this.registerPrefixParser(TokenType.LPAREN, this.parseGroupedExpression);
     this.registerPrefixParser(TokenType.IF, this.parseIfExpression);
     this.registerPrefixParser(TokenType.FUNCTION, this.parseFunctionLiteral);
+    this.registerPrefixParser(TokenType.LBRACKET, this.parseArrayLiteral);
 
     this.registerInfixParser(TokenType.EQ, this.parseInfixExpression);
     this.registerInfixParser(TokenType.NOT_EQ, this.parseInfixExpression);
@@ -63,6 +66,7 @@ export class Parser {
     this.registerInfixParser(TokenType.SLASH, this.parseInfixExpression);
     this.registerInfixParser(TokenType.ASTERISK, this.parseInfixExpression);
     this.registerInfixParser(TokenType.LPAREN, this.parseCallExpression);
+    this.registerInfixParser(TokenType.LBRACKET, this.parseIndexExpression);
   }
 
   nextToken(): void {
@@ -343,10 +347,19 @@ export class Parser {
     return identifiers;
   }
 
+  parseArrayLiteral: PrefixParserFn = () => {
+    const token = this.currentToken;
+    const elements = this.parseExpressionList(TokenType.RBRACKET);
+    if (!elements) {
+      return;
+    }
+    return new ArrayLiteral(token, elements);
+  };
+
   parseCallExpression: InfixParserFn = (functionIdentifier) => {
     const token = this.currentToken;
 
-    const functionArguments = this.parseCallArguments();
+    const functionArguments = this.parseExpressionList(TokenType.RPAREN);
 
     if (!functionArguments) {
       return;
@@ -355,8 +368,8 @@ export class Parser {
     return new CallExpression(token, functionIdentifier, functionArguments);
   };
 
-  parseCallArguments(): Maybe<ExpressionUnion[]> {
-    if (this.peekToken.type === TokenType.RPAREN) {
+  parseExpressionList(closerToken: TokenType): Maybe<ExpressionUnion[]> {
+    if (this.peekToken.type === closerToken) {
       this.nextToken();
 
       return [];
@@ -382,12 +395,25 @@ export class Parser {
       callArguments.push(argument);
     }
 
-    if (!this.expectPeek(TokenType.RPAREN)) {
+    if (!this.expectPeek(closerToken)) {
       return;
     }
 
     return callArguments;
   }
+
+  parseIndexExpression: InfixParserFn = (left) => {
+    const token = this.currentToken;
+
+    this.nextToken();
+    const index = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+    if (!this.expectPeek(TokenType.RBRACKET) || index == null) {
+      return;
+    }
+
+    return new IndexExpression(token, left, index);
+  };
 
   parsePrefixExpression: PrefixParserFn = () => {
     const currentToken = this.currentToken;

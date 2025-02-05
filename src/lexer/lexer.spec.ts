@@ -28,6 +28,7 @@ describe("Lexer", () => {
 
     "foobar";
     "foo bar";
+    [1, 2];
     `;
 
     const expectedTokens: Token[] = [
@@ -107,6 +108,12 @@ describe("Lexer", () => {
       { type: TokenType.STRING, literal: "foobar" },
       { type: TokenType.SEMICOLON, literal: ";" },
       { type: TokenType.STRING, literal: "foo bar" },
+      { type: TokenType.SEMICOLON, literal: ";" },
+      { type: TokenType.LBRACKET, literal: "[" },
+      { type: TokenType.INT, literal: "1" },
+      { type: TokenType.COMMA, literal: "," },
+      { type: TokenType.INT, literal: "2" },
+      { type: TokenType.RBRACKET, literal: "]" },
       { type: TokenType.SEMICOLON, literal: ";" },
       { type: TokenType.EOF, literal: "" },
     ];

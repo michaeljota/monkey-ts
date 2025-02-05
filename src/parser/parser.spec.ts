@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Lexer } from "::lexer/lexer";
 import {
+  ArrayLiteral,
   AstExpressionType,
   AstStatementType,
   BooleanLiteral,
@@ -9,6 +10,7 @@ import {
   FunctionLiteral,
   Identifier,
   IfExpression,
+  IndexExpression,
   InfixExpression,
   IntegerLiteral,
   LetStatement,
@@ -161,6 +163,30 @@ describe("Parser", () => {
     const statement = getTestedBaseStatement(parser, program);
 
     testLiteralExpression(statement.expression, false);
+  });
+
+  it("should parse array literal expressions", () => {
+    const input = "[1, 2 + 3, 4 * 5];";
+    const [parser, program] = setupProgram(input);
+    const statement = getTestedBaseStatement(parser, program);
+
+    const arrayLiteral = getTestedExpression(statement.expression, ArrayLiteral);
+    expect(arrayLiteral.elements).toBeArrayOfSize(3);
+
+    testLiteralExpression(arrayLiteral.elements[0], 1);
+    testInfixExpression(arrayLiteral.elements[1], 2, "+", 3);
+    testInfixExpression(arrayLiteral.elements[2], 4, "*", 5);
+  });
+
+  it("should parse array index expressions", () => {
+    const input = "myArray[1 + 1];";
+    const [parser, program] = setupProgram(input);
+    const statement = getTestedBaseStatement(parser, program);
+
+    const indexExpression = getTestedExpression(statement.expression, IndexExpression);
+
+    testIdentifier(indexExpression.left, "myArray");
+    testInfixExpression(indexExpression.index, 1, "+", 1);
   });
 
   it("should parse if expressions", () => {
@@ -358,6 +384,8 @@ describe("Parser", () => {
       "add (a, b, 1, (2 * 3), (4 + 5), add (6, (7 * 8)))",
     ],
     ["add (a + b + c * d / f + g)", "add ((((a + b) + ((c * d) / f)) + g))"],
+    ["a * [1, 2, 3, 4][b * c] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)"],
+    ["add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))"],
   ];
 
   precedenceGroupingTesting.forEach(([input, expected]) =>

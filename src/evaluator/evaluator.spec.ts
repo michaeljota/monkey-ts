@@ -2,7 +2,16 @@ import { describe, expect, it } from "bun:test";
 
 import { Lexer } from "::lexer/lexer";
 import { Parser } from "::parser";
-import { Boolean, Environment, Error, Function, Integer, String, type BaseObject } from "::object";
+import {
+  Array,
+  Boolean,
+  Environment,
+  Error,
+  Function,
+  Integer,
+  String,
+  type BaseObject,
+} from "::object";
 
 import { evaluate } from "./evaluator";
 import { NULL } from "./staticValues";
@@ -60,6 +69,21 @@ describe("Evaluator", () => {
 
       expect(evaluated).toBeInstanceOf(String);
       expect((evaluated as String).value).toBe(expected);
+    });
+  });
+
+  const arrayTestCases: [input: string, expected: number[]][] = [["[1, 2 * 2, 3 + 3]", [1, 4, 6]]];
+
+  arrayTestCases.forEach(([input, expected]) => {
+    it(`should evaluate array input (${input}) to ${expected.join()}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      expect(evaluated).toBeInstanceOf(Array);
+      const evaluatedArray = evaluated as Array;
+
+      evaluatedArray.elements.forEach((value, i) => {
+        testIntegerObject(value, expected[i]);
+      });
     });
   });
 
@@ -174,10 +198,10 @@ describe("Evaluator", () => {
   );
 
   const letStatementsTestCases: [input: string, expected: number][] = [
-    ["let  a  =  5;  a;", 5],
-    ["let  a  =  5  *  5;  a;", 25],
-    ["let  a  =  5;  let  b  =  a;  b;", 5],
-    ["let  a  =  5;  let  b  =  a;  let  c  =  a  +  b  +  5;  c;", 15],
+    ["let a = 5; a;", 5],
+    ["let a = 5 * 5; a;", 25],
+    ["let a = 5; let b = a; b;", 5],
+    ["let a = 5; let b = a; let c = a + b + 5; c;", 15],
   ];
 
   letStatementsTestCases.forEach(([input, expected]) =>
@@ -208,7 +232,7 @@ describe("Evaluator", () => {
   const functionApplicationTestCases: [input: string, expected: number][] = [
     ["let identity = fn(x) { x; }; identity(5);", 5],
     ["let identity = fn(x) { return x; }; identity(5);", 5],
-    ["let double  = fn(x) { x * 2; }; double(5);", 10],
+    ["let double = fn(x) { x * 2; }; double(5);", 10],
     ["let add = fn(x, y) { x + y; }; add(5, 5);", 10],
     ["let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20],
     ["fn(x) { x; }(5)", 5],
@@ -235,7 +259,7 @@ addTwo(2);`,
     [`len("")`, 0],
     [`len("four")`, 4],
     [`len("hello world")`, 11],
-    [`len(1)`, "Unexpected type passed to \"len\" builtin. Param: INTEGER"],
+    [`len(1)`, 'Unexpected type passed to "len" builtin. Called with: INTEGER'],
     [`len("one", "two")`, "Wrong number of arguments. Expected: 1. Got: 2"],
   ];
 
@@ -256,6 +280,76 @@ addTwo(2);`,
         default:
           break;
       }
+    }),
+  );
+
+  const arrayIndexTestCases: [input: string, expected: number | string][] = [
+    ["[1, 2, 3][0]", 1],
+    ["[1, 2, 3][1]", 2],
+    ["[1, 2, 3][2]", 3],
+    ["let i = 0; [1][i];", 1],
+    ["[1, 2, 3][1 + 1];", 3],
+    ["let myArray = [1, 2, 3]; myArray[2];", 3],
+    ["let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];", 6],
+    ["let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", 2],
+    ["[1, 2, 3][3]", "Index access out of bounds. Index: 3. Array len: 3"],
+    ["[1, 2, 3][-4]", "Index access out of bounds. Index: -4. Array len: 3"],
+    ["[1, 2, 3][-1]", 3],
+  ];
+
+  arrayIndexTestCases.forEach(([input, expected]) =>
+    it(`should evaluate array by index with input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      switch (typeof expected) {
+        case "number":
+          testIntegerObject(evaluated, expected);
+          return;
+
+        case "string": {
+          expect(evaluated).toBeInstanceOf(Error);
+          expect((evaluated as Error).message).toBe(expected);
+          return;
+        }
+        default:
+          break;
+      }
+    }),
+  );
+
+  const arrayBuiltinTestCases: [input: string, expected: number[]][] = [
+    [
+      `
+    let map = fn(arr, f) {
+      let iter = fn(arr, accumulated) {
+        if (len(arr) == 0) {
+          accumulated
+        } else {
+          iter(tail(arr), push(accumulated, f(head(arr))));
+        }
+      };
+      iter(arr, []);
+    };
+
+    let a = [1, 2, 3, 4];
+    let double = fn(x) { x * 2 };
+
+    map(a, double);
+    `,
+      [2, 4, 6, 8],
+    ],
+  ];
+
+  arrayBuiltinTestCases.forEach(([input, expected], i) =>
+    it(`should run builtin array functions (${i})`, () => {
+      const evaluated = setupEvaluator(input);
+
+      expect(evaluated).toBeInstanceOf(Array);
+      const evaluatedArray = evaluated as Array;
+
+      evaluatedArray.elements.forEach((value, i) => {
+        testIntegerObject(value, expected[i]);
+      });
     }),
   );
 });
