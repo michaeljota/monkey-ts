@@ -1,5 +1,5 @@
 import { TokenType, type Token } from "::token";
-import { isLetter, getTokenTypeFromLiteral, isDigit } from "::util";
+import { isLetter, getTokenTypeFromLiteral, isDigit, isWhitespace } from "::util";
 
 const NUL = Symbol("NUL");
 
@@ -7,19 +7,17 @@ export class Lexer {
   /**
    * current position in input (points to current char)
    */
-  position: number = 0;
-  /**
-   * current reading position in input (after current char)
-   */
-  readPosition: number = 0;
-  /**
-   * current char under examination
-   */
-  ch: string | typeof NUL = NUL;
+  private position: number = 0;
 
-  constructor(private readonly input: string) {
-    this.readChar();
+  private get ch(): Maybe<string> {
+    return this.input.at(this.position);
   }
+
+  private get nextCh(): Maybe<string> {
+    return this.input.at(this.position + 1);
+  }
+
+  constructor(private readonly input: string) {}
 
   nextToken(): Token {
     this.skipWhitespace();
@@ -27,11 +25,18 @@ export class Lexer {
     let literal = this.ch;
     let type: TokenType;
 
+    if (this.position >= this.input.length) {
+      return {
+        literal: "",
+        type: TokenType.EOF,
+      };
+    }
+
     switch (literal) {
       case "=": {
-        if (this.peekChar() === "=") {
-          this.readChar();
-          literal = `${literal}${String(this.ch)}`;
+        if (this.nextCh === "=") {
+          this.nextPosition();
+          literal = "==";
           type = TokenType.EQ;
         } else {
           type = TokenType.ASSIGN;
@@ -63,9 +68,9 @@ export class Lexer {
         break;
       }
       case "!": {
-        if (this.peekChar() === "=") {
-          this.readChar();
-          literal = `${literal}${String(this.ch)}`;
+        if (this.nextCh === "=") {
+          this.nextPosition();
+          literal = "!=";
           type = TokenType.NOT_EQ;
         } else {
           type = TokenType.BANG;
@@ -109,11 +114,6 @@ export class Lexer {
         literal = this.readString();
         break;
       }
-      case NUL: {
-        literal = "";
-        type = TokenType.EOF;
-        break;
-      }
       default: {
         if (isLetter(literal)) {
           const literal = this.readIdentifier();
@@ -136,26 +136,23 @@ export class Lexer {
       }
     }
 
-    this.readChar();
+    this.nextPosition();
 
     return {
-      literal,
+      literal: literal ?? "\0",
       type,
     };
   }
 
-  private readChar(): void {
-    this.ch = this.readPosition >= this.input.length ? NUL : this.input[this.readPosition];
-
-    this.position = this.readPosition;
-    this.readPosition++;
+  private nextPosition(): void {
+    this.position++;
   }
 
   private readIdentifier(): string {
     const currentPosition = this.position;
 
-    while (typeof this.ch === "string" && isLetter(this.ch)) {
-      this.readChar();
+    while (isLetter(this.ch)) {
+      this.nextPosition();
     }
 
     return this.input.substring(currentPosition, this.position);
@@ -164,29 +161,25 @@ export class Lexer {
   private readNumber(): string {
     const currentPosition = this.position;
 
-    while (typeof this.ch === "string" && isDigit(this.ch)) {
-      this.readChar();
+    while (isDigit(this.ch)) {
+      this.nextPosition();
     }
 
     return this.input.substring(currentPosition, this.position);
   }
 
   private skipWhitespace(): void {
-    while (typeof this.ch === "string" && /\s+/.test(this.ch)) {
-      this.readChar();
+    while (isWhitespace(this.ch)) {
+      this.nextPosition();
     }
   }
 
-  private peekChar(): Maybe<string> {
-    return this.input[this.readPosition];
-  }
-
   private readString(): string {
-    this.readChar();
+    this.nextPosition();
     const currentPosition = this.position;
 
     while (this.ch !== '"') {
-      this.readChar();
+      this.nextPosition();
     }
 
     return this.input.substring(currentPosition, this.position);

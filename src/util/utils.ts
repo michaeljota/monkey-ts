@@ -1,8 +1,10 @@
 import { TokenType } from "::token";
 
-export const isLetter = (char: string) => /[a-zA-Z_]/.test(char);
+export const isLetter = (ch: Maybe<string>) => ch != null && /[a-zA-Z_]/.test(ch);
 
-export const isDigit = (char: string) => /^\d+$/.test(char);
+export const isDigit = (ch: Maybe<string>) => ch != null && /^\d+$/.test(ch);
+
+export const isWhitespace = (ch: Maybe<string>) => ch != null && /\s+/.test(ch);
 
 export const Keywords: Record<string, TokenType> = {
   fn: TokenType.FUNCTION,
