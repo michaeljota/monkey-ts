@@ -1,49 +1,54 @@
-import { createStore, createEvent, sample, combine, createEffect } from "effector";
+import { createStore, createEvent, sample, createEffect } from "effector";
 import { TokenType, type Token } from "::token";
-import { isLetter, getTokenTypeFromLiteral, isDigit, isWhitespace } from "::util";
+import {
+  skipWhitespace,
+  readString,
+  readIdentifier,
+  readNumber,
+  getTokenTypeFromLiteral,
+  isDigit,
+  isLetter,
+  isEndOfFile,
+} from "./helpers";
 
-const initLexer = createEvent<string>();
-const setCursor = createEvent<number>();
-const setToken = createEvent<Token>();
-const getNextToken = createEvent();
-
-const $input = createStore("").on(initLexer, (_, newInput) => newInput);
-const $cursor = createStore(0)
-  .on(initLexer, () => 0)
-  .on(setCursor, (_, pos) => pos);
-const $token = createStore<Token>({
+const EOF_TOKEN: Token = {
   literal: "",
   type: TokenType.EOF,
-})
-  .on(initLexer, () => ({
-    literal: "",
-    type: TokenType.EOF,
-  }))
-  .on(setToken, (_, token) => token);
+};
 
-type NextTokenFxInput = {
+const initLexer = createEvent<string>();
+const getNextToken = createEvent();
+const setNextTokenResult = createEvent<NextTokenFxResult>();
+
+const $input = createStore("").on(initLexer, (_, newInput) => newInput);
+
+const $cursor = createStore(0)
+  .on(initLexer, () => 0)
+  .on(setNextTokenResult, (_, { cursor }) => cursor);
+
+const $token = createStore(EOF_TOKEN)
+  .on(initLexer, () => EOF_TOKEN)
+  .on(setNextTokenResult, (_, { token }) => token);
+
+type NextTokenFxParams = {
   input: string;
   cursor: number;
 };
 
-type NextTokenFxOutput = {
+type NextTokenFxResult = {
   token: Token;
   cursor: number;
 };
 
-const nextTokenFx = createEffect(({ cursor, input }: NextTokenFxInput): NextTokenFxOutput => {
-  const positionAfterWhitespaces = skipWhitespace(input, cursor);
-  const isFinished = positionAfterWhitespaces >= input.length;
-  const ch = input.at(positionAfterWhitespaces);
-  const nextCh = input.at(positionAfterWhitespaces + 1);
+const nextTokenFx = createEffect(({ cursor, input }: NextTokenFxParams): NextTokenFxResult => {
+  const cursorPositionAfterWhitespaces = skipWhitespace(input, cursor);
+  const ch = input.at(cursorPositionAfterWhitespaces);
+  const nextCh = input.at(cursorPositionAfterWhitespaces + 1);
 
-  if (isFinished) {
+  if (isEndOfFile(input.length, cursorPositionAfterWhitespaces)) {
     return {
-      token: {
-        literal: "",
-        type: TokenType.EOF,
-      },
-      cursor: positionAfterWhitespaces,
+      token: EOF_TOKEN,
+      cursor: cursorPositionAfterWhitespaces,
     };
   }
 
@@ -52,120 +57,120 @@ const nextTokenFx = createEffect(({ cursor, input }: NextTokenFxInput): NextToke
       if (nextCh === "=") {
         return {
           token: { type: TokenType.EQ, literal: "==" },
-          cursor: positionAfterWhitespaces + 2,
+          cursor: cursorPositionAfterWhitespaces + 2,
         };
       }
 
       return {
         token: { type: TokenType.ASSIGN, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
 
     case ";": {
       return {
         token: { type: TokenType.SEMICOLON, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case ":": {
       return {
         token: { type: TokenType.COLON, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case ",": {
       return {
         token: { type: TokenType.COMMA, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "+": {
       return {
         token: { type: TokenType.PLUS, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "-": {
       return {
         token: { type: TokenType.MINUS, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "*": {
       return {
         token: { type: TokenType.ASTERISK, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "/": {
       return {
         token: { type: TokenType.SLASH, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "!": {
       if (nextCh === "=") {
         return {
           token: { type: TokenType.NOT_EQ, literal: "!=" },
-          cursor: positionAfterWhitespaces + 2,
+          cursor: cursorPositionAfterWhitespaces + 2,
         };
       }
       return {
         token: { type: TokenType.BANG, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "{": {
       return {
         token: { type: TokenType.LBRACE, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "}": {
       return {
         token: { type: TokenType.RBRACE, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "(": {
       return {
         token: { type: TokenType.LPAREN, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case ")": {
       return {
         token: { type: TokenType.RPAREN, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "[": {
       return {
         token: { type: TokenType.LBRACKET, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "]": {
       return {
         token: { type: TokenType.RBRACKET, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case "<": {
       return {
         token: { type: TokenType.LT, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case ">": {
       return {
         token: { type: TokenType.GT, literal: ch },
-        cursor: positionAfterWhitespaces + 1,
+        cursor: cursorPositionAfterWhitespaces + 1,
       };
     }
     case '"': {
-      const [strLiteral, position] = readString(input, positionAfterWhitespaces + 1);
+      const [strLiteral, position] = readString(input, cursorPositionAfterWhitespaces + 1);
       return {
         token: { type: TokenType.STRING, literal: strLiteral },
         cursor: position + 1,
@@ -173,7 +178,7 @@ const nextTokenFx = createEffect(({ cursor, input }: NextTokenFxInput): NextToke
     }
     default:
       if (isLetter(ch)) {
-        const [identLiteral, position] = readIdentifier(input, positionAfterWhitespaces);
+        const [identLiteral, position] = readIdentifier(input, cursorPositionAfterWhitespaces);
         return {
           token: {
             type: getTokenTypeFromLiteral(identLiteral),
@@ -183,7 +188,7 @@ const nextTokenFx = createEffect(({ cursor, input }: NextTokenFxInput): NextToke
         };
       }
       if (isDigit(ch)) {
-        const [numberLiteral, position] = readNumber(input, positionAfterWhitespaces);
+        const [numberLiteral, position] = readNumber(input, cursorPositionAfterWhitespaces);
         return {
           token: { type: TokenType.INT, literal: numberLiteral },
           cursor: position,
@@ -203,66 +208,9 @@ sample({
 });
 
 sample({
-  clock: nextTokenFx.doneData.map(({ cursor: position }) => position),
-  target: setCursor,
+  clock: nextTokenFx.doneData,
+  target: setNextTokenResult,
 });
-
-sample({
-  clock: nextTokenFx.doneData.map(({ token }) => token),
-  target: setToken,
-});
-
-export const skipWhitespace = (input: string, position: number): number => {
-  const ch = input.at(position);
-
-  if (position >= input.length || !isWhitespace(ch)) {
-    return position;
-  }
-
-  return skipWhitespace(input, position + 1);
-};
-
-export const readString = (
-  input: string,
-  initialPosition: number,
-  currentPosition: number = initialPosition,
-): [string, number] => {
-  const ch = input.at(currentPosition);
-
-  if (currentPosition >= input.length || ch === '"') {
-    return [input.substring(initialPosition, currentPosition), currentPosition];
-  }
-
-  return readString(input, initialPosition, currentPosition + 1);
-};
-
-export const readIdentifier = (
-  input: string,
-  initialPosition: number,
-  currentPosition: number = initialPosition,
-): [string, number] => {
-  const ch = input.at(currentPosition);
-
-  if (currentPosition >= input.length || !isLetter(ch)) {
-    return [input.substring(initialPosition, currentPosition), currentPosition];
-  }
-
-  return readIdentifier(input, initialPosition, currentPosition + 1);
-};
-
-export const readNumber = (
-  input: string,
-  initialPosition: number,
-  currentPosition: number = initialPosition,
-): [string, number] => {
-  const ch = input.at(currentPosition);
-
-  if (currentPosition >= input.length || !isDigit(ch)) {
-    return [input.substring(initialPosition, currentPosition), currentPosition];
-  }
-
-  return readNumber(input, initialPosition, currentPosition + 1);
-};
 
 export class Lexer {
   constructor(input: string) {
