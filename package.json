@@ -12,5 +12,8 @@
   },
   "peerDependencies": {
     "typescript": "5.7.3"
+  },
+  "dependencies": {
+    "effector": "^23.3.0"
   }
 }
