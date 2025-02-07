@@ -8,6 +8,7 @@ export enum ObjectType {
   FUNCTION = "FUNCTION",
   BUILTIN = "BUILTIN",
   ARRAY = "ARRAY",
+  HASH = "HASH",
 }
 
 export interface BaseObject {

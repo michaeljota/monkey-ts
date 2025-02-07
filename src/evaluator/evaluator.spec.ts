@@ -8,9 +8,11 @@ import {
   Environment,
   Error,
   Function,
+  Hash,
   Integer,
   String,
   type BaseObject,
+  type HashKey,
 } from "::object";
 
 import { evaluate } from "./evaluator";
@@ -186,6 +188,7 @@ describe("Evaluator", () => {
     ],
     ["foobar", "Identifier not found: foobar"],
     ['"Hello" - "world"', "Unknown operator: STRING - STRING"],
+    [`{"name": "Monkey"}[fn(x) { x }];`, "Unusable hash key: FUNCTION"],
   ];
 
   errorTestCases.forEach(([input, expected]) =>
@@ -350,6 +353,70 @@ addTwo(2);`,
       evaluatedArray.elements.forEach((value, i) => {
         testIntegerObject(value, expected[i]);
       });
+    }),
+  );
+
+  it("should parse hash", () => {
+    const input = `let two = "two";
+    {
+        "one": 10 - 9,
+        two: 1 + 1,
+        "thr" + "ee": 6 / 2,
+        4: 4,
+        true: 5,
+        false: 6
+    }`;
+
+    const expected = new Map<HashKey, number>([
+      ["one", 1],
+      ["two", 2],
+      ["three", 3],
+      [4, 4],
+      [true, 5],
+      [false, 6],
+    ]);
+
+    const evaluated = setupEvaluator(input);
+
+    expect(evaluated).toBeInstanceOf(Hash);
+    const evaluatedHash = evaluated as Hash;
+
+    expect(evaluatedHash.pairs.size).toBe(6);
+    evaluatedHash.pairs.entries().forEach(([key, value]) => {
+      const expectedValue = expected.get(key);
+
+      expect(expectedValue).toBeDefined();
+
+      testIntegerObject(value, expectedValue!);
+    });
+  });
+
+  const hashIndexTestCases: [string, Maybe<number>][] = [
+    [`{"foo": 5}["foo"]`, 5],
+    [`let key = "foo";{"foo": 5}[key]`, 5],
+    [`{5: 5}[5]`, 5],
+    [`{true: 5}[true]`, 5],
+    [`{false: 5}[false]`, 5],
+    [`{}["foo"]`, undefined],
+    [`{"foo": 5}["bar"]`, undefined],
+  ];
+
+  hashIndexTestCases.forEach(([input, expected]) =>
+    it.only(`should evaluate hash by index with input (${input}) to ${expected}`, () => {
+      const evaluated = setupEvaluator(input);
+
+      switch (typeof expected) {
+        case "number":
+          testIntegerObject(evaluated, expected);
+          return;
+
+        case "undefined": {
+          expect(evaluated).toBe(NULL);
+          return;
+        }
+        default:
+          break;
+      }
     }),
   );
 });

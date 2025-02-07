@@ -14,6 +14,7 @@ export type ExpressionUnion =
   | BooleanLiteral
   | CallExpression
   | FunctionLiteral
+  | HashLiteral
   | Identifier
   | IfExpression
   | IndexExpression
@@ -242,6 +243,25 @@ export class BooleanLiteral implements Expression {
 
   toString(): string {
     return this.token.literal;
+  }
+}
+
+export class HashLiteral implements Expression {
+  readonly type = AstExpressionType.Hash;
+
+  constructor(
+    private readonly token: Token,
+    readonly pairs: Map<ExpressionUnion, ExpressionUnion>,
+  ) {}
+
+  tokenLiteral(): string {
+    return this.token.literal;
+  }
+
+  toString(): string {
+    return `{ ${Object.entries(this.pairs)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(", ")} }`;
   }
 }
 

@@ -47,6 +47,10 @@ export class Lexer {
         type = TokenType.SEMICOLON;
         break;
       }
+      case ":": {
+        type = TokenType.COLON;
+        break;
+      }
       case ",": {
         type = TokenType.COMMA;
         break;

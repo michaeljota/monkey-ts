@@ -19,6 +19,7 @@ export enum AstExpressionType {
   String = "String",
   Array = "Array",
   Index = "Index",
+  Hash = "Hash",
 }
 
 export enum AstProgramType {

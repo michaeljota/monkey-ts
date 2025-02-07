@@ -8,6 +8,7 @@ import {
   ExpressionPrecedence,
   ExpressionStatement,
   FunctionLiteral,
+  HashLiteral,
   Identifier,
   IfExpression,
   IndexExpression,
@@ -56,6 +57,7 @@ export class Parser {
     this.registerPrefixParser(TokenType.IF, this.parseIfExpression);
     this.registerPrefixParser(TokenType.FUNCTION, this.parseFunctionLiteral);
     this.registerPrefixParser(TokenType.LBRACKET, this.parseArrayLiteral);
+    this.registerPrefixParser(TokenType.LBRACE, this.parseHashLiteral);
 
     this.registerInfixParser(TokenType.EQ, this.parseInfixExpression);
     this.registerInfixParser(TokenType.NOT_EQ, this.parseInfixExpression);
@@ -354,6 +356,40 @@ export class Parser {
       return;
     }
     return new ArrayLiteral(token, elements);
+  };
+
+  parseHashLiteral: PrefixParserFn = () => {
+    const token = this.currentToken;
+    const pairs = new Map<ExpressionUnion, ExpressionUnion>();
+
+    while (this.peekToken.type !== TokenType.RBRACE) {
+      this.nextToken();
+      const key = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+      if (!key || !this.expectPeek(TokenType.COLON)) {
+        return;
+      }
+
+      this.nextToken();
+
+      const value = this.parseExpression(ExpressionPrecedence.LOWEST);
+
+      if (!value) {
+        return;
+      }
+
+      pairs.set(key, value);
+
+      // @ts-ignore
+      if (this.peekToken.type !== TokenType.RBRACE && !this.expectPeek(TokenType.COMMA)) {
+        return;
+      }
+    }
+
+    if (!this.expectPeek(TokenType.RBRACE)) {
+    }
+
+    return new HashLiteral(token, pairs);
   };
 
   parseCallExpression: InfixParserFn = (functionIdentifier) => {

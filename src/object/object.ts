@@ -11,11 +11,18 @@ export type ObjectUnion =
   | Function
   | String
   | Builtin
-  | Array;
+  | Array
+  | Hash;
 
 export type BuiltinFunction = (...params: ObjectUnion[]) => ObjectUnion;
 
-export class Integer implements BaseObject {
+export type HashKey = number | string | boolean;
+
+export interface Hashable {
+  hashKey: HashKey;
+}
+
+export class Integer implements BaseObject, Hashable {
   readonly type = ObjectType.INTEGER;
 
   constructor(readonly value: number) {}
@@ -23,9 +30,13 @@ export class Integer implements BaseObject {
   toString(): string {
     return `${this.value}`;
   }
+
+  get hashKey(): HashKey {
+    return this.value;
+  }
 }
 
-export class String implements BaseObject {
+export class String implements BaseObject, Hashable {
   readonly type = ObjectType.STRING;
 
   constructor(readonly value: string) {}
@@ -33,15 +44,23 @@ export class String implements BaseObject {
   toString(): string {
     return `${this.value}`;
   }
+
+  get hashKey(): HashKey {
+    return this.value;
+  }
 }
 
-export class Boolean implements BaseObject {
+export class Boolean implements BaseObject, Hashable {
   readonly type = ObjectType.BOOLEAN;
 
   constructor(readonly value: boolean) {}
 
   toString(): string {
     return `${this.value}`;
+  }
+
+  get hashKey(): HashKey {
+    return this.value;
   }
 }
 
@@ -109,5 +128,15 @@ export class Array implements BaseObject {
 
   toString(): string {
     return `[${this.elements.join(",")}]`;
+  }
+}
+
+export class Hash implements BaseObject {
+  readonly type = ObjectType.HASH;
+
+  constructor(readonly pairs: Map<HashKey, ObjectUnion>) {}
+
+  toString(): string {
+    return `{ ${[...this.pairs.entries().map(([key, value]) => `${key} = ${value}`)].join(", ")} }`;
   }
 }

@@ -2,6 +2,7 @@ import {
   AstExpressionType,
   AstProgramType,
   AstStatementType,
+  HashLiteral,
   Identifier,
   IfExpression,
   Program,
@@ -15,10 +16,12 @@ import {
   Environment,
   Error,
   Function,
+  Hash,
   Integer,
   ObjectType,
   Return,
   String,
+  type HashKey,
   type ObjectUnion,
 } from "::object";
 import { FALSE, NULL, TRUE } from "./staticValues";
@@ -62,6 +65,9 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
         return elements;
       }
       return new Array(elements);
+    }
+    case AstExpressionType.Hash: {
+      return evaluateHashLiteral(node, environment);
     }
     case AstExpressionType.Boolean: {
       return nativeBoolToBooleanObject(node.value);
@@ -111,8 +117,8 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
         return left;
       }
       const index = evaluate(node.index, environment);
-      if (left instanceof Error) {
-        return left;
+      if (index instanceof Error) {
+        return index;
       }
       return evaluateIndexExpression(left, index);
     }
@@ -311,6 +317,30 @@ const evaluateExpressions = (
   return res;
 };
 
+const evaluateHashLiteral = (hash: HashLiteral, environment: Environment): ObjectUnion => {
+  const pairs = new Map<HashKey, ObjectUnion>();
+
+  for (const [keyNode, valueNode] of hash.pairs) {
+    const key = evaluate(keyNode, environment);
+    if (key instanceof Error) {
+      return key;
+    }
+
+    if (!("hashKey" in key)) {
+      return new Error(`Unusable hash key: ${key.type}`);
+    }
+
+    const value = evaluate(valueNode, environment);
+    if (value instanceof Error) {
+      return value;
+    }
+
+    pairs.set(key.hashKey, value);
+  }
+
+  return new Hash(pairs);
+};
+
 const evaluateFunction = (fn: ObjectUnion, params: ObjectUnion[]): ObjectUnion => {
   if (fn instanceof Function) {
     const initialStore = fn.params.reduce(
@@ -335,9 +365,20 @@ const evaluateFunction = (fn: ObjectUnion, params: ObjectUnion[]): ObjectUnion =
 };
 
 const evaluateIndexExpression = (left: ObjectUnion, index: ObjectUnion): ObjectUnion => {
-  if (left.type !== ObjectType.ARRAY) {
-    return new Error(`Index access not supported: ${left.type}`);
+  switch (left.type) {
+    case ObjectType.ARRAY: {
+      return evaluateArrayIndexExpression(left, index);
+    }
+
+    case ObjectType.HASH: {
+      return evaluateHashIndexExpression(left, index);
+    }
+    default:
+      return new Error(`Index operator not supported: ${left.type}`);
   }
+};
+
+const evaluateArrayIndexExpression = (left: Array, index: ObjectUnion): ObjectUnion => {
   if (index.type !== ObjectType.INTEGER) {
     return new Error(`Invalid index: ${index.type}`);
   }
@@ -349,4 +390,18 @@ const evaluateIndexExpression = (left: ObjectUnion, index: ObjectUnion): ObjectU
     );
   }
   return element;
+};
+
+const evaluateHashIndexExpression = (left: Hash, index: ObjectUnion): ObjectUnion => {
+  if (!("hashKey" in index)) {
+    return new Error(`Unusable hash key: ${index.type}`);
+  }
+
+  const value = left.pairs.get(index.hashKey);
+
+  if (!value) {
+    return NULL;
+  }
+
+  return value;
 };

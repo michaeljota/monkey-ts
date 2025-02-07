@@ -8,6 +8,7 @@ import {
   CallExpression,
   ExpressionStatement,
   FunctionLiteral,
+  HashLiteral,
   Identifier,
   IfExpression,
   IndexExpression,
@@ -187,6 +188,40 @@ describe("Parser", () => {
 
     testIdentifier(indexExpression.left, "myArray");
     testInfixExpression(indexExpression.index, 1, "+", 1);
+  });
+
+  it("should parse hash expressions with string keys", () => {
+    const input = '{ "one": 1, "two": 2, "three": 3 }';
+
+    const expected = new Map([
+      ["one", 1],
+      ["two", 2],
+      ["three", 3],
+    ]);
+
+    const [parser, program] = setupProgram(input);
+    const statement = getTestedBaseStatement(parser, program);
+
+    const hashLiteral = getTestedExpression(statement.expression, HashLiteral);
+
+    expect(hashLiteral.pairs.size).toBe(3);
+
+    hashLiteral.pairs.forEach((value, key) => {
+      expect(key).toBeInstanceOf(StringLiteral);
+      const expectedValue = expected.get((key as StringLiteral).value);
+      testLiteralExpression(value, expectedValue);
+    });
+  });
+
+  it("should parse empty hash expressions", () => {
+    const input = "{}";
+
+    const [parser, program] = setupProgram(input);
+    const statement = getTestedBaseStatement(parser, program);
+
+    const hashLiteral = getTestedExpression(statement.expression, HashLiteral);
+
+    expect(hashLiteral.pairs).toBeEmpty();
   });
 
   it("should parse if expressions", () => {
