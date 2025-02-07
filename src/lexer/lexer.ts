@@ -1,191 +1,276 @@
+import { createStore, createEvent, sample, combine, createEffect } from "effector";
 import { TokenType, type Token } from "::token";
 import { isLetter, getTokenTypeFromLiteral, isDigit, isWhitespace } from "::util";
 
-const NUL = Symbol("NUL");
+const initLexer = createEvent<string>();
+const setCursor = createEvent<number>();
+const setToken = createEvent<Token>();
+const getNextToken = createEvent();
 
-export class Lexer {
-  /**
-   * current position in input (points to current char)
-   */
-  private position: number = 0;
+const $input = createStore("").on(initLexer, (_, newInput) => newInput);
+const $cursor = createStore(0)
+  .on(initLexer, () => 0)
+  .on(setCursor, (_, pos) => pos);
+const $token = createStore<Token>({
+  literal: "",
+  type: TokenType.EOF,
+})
+  .on(initLexer, () => ({
+    literal: "",
+    type: TokenType.EOF,
+  }))
+  .on(setToken, (_, token) => token);
 
-  private get ch(): Maybe<string> {
-    return this.input.at(this.position);
-  }
+type NextTokenFxInput = {
+  input: string;
+  cursor: number;
+};
 
-  private get nextCh(): Maybe<string> {
-    return this.input.at(this.position + 1);
-  }
+type NextTokenFxOutput = {
+  token: Token;
+  cursor: number;
+};
 
-  constructor(private readonly input: string) {}
+const nextTokenFx = createEffect(({ cursor, input }: NextTokenFxInput): NextTokenFxOutput => {
+  const positionAfterWhitespaces = skipWhitespace(input, cursor);
+  const isFinished = positionAfterWhitespaces >= input.length;
+  const ch = input.at(positionAfterWhitespaces);
+  const nextCh = input.at(positionAfterWhitespaces + 1);
 
-  nextToken(): Token {
-    this.skipWhitespace();
-
-    let literal = this.ch;
-    let type: TokenType;
-
-    if (this.position >= this.input.length) {
-      return {
+  if (isFinished) {
+    return {
+      token: {
         literal: "",
         type: TokenType.EOF,
-      };
-    }
-
-    switch (literal) {
-      case "=": {
-        if (this.nextCh === "=") {
-          this.nextPosition();
-          literal = "==";
-          type = TokenType.EQ;
-        } else {
-          type = TokenType.ASSIGN;
-        }
-        break;
-      }
-      case ";": {
-        type = TokenType.SEMICOLON;
-        break;
-      }
-      case ":": {
-        type = TokenType.COLON;
-        break;
-      }
-      case ",": {
-        type = TokenType.COMMA;
-        break;
-      }
-      case "+": {
-        type = TokenType.PLUS;
-        break;
-      }
-      case "-": {
-        type = TokenType.MINUS;
-        break;
-      }
-      case "*": {
-        type = TokenType.ASTERISK;
-        break;
-      }
-      case "/": {
-        type = TokenType.SLASH;
-        break;
-      }
-      case "!": {
-        if (this.nextCh === "=") {
-          this.nextPosition();
-          literal = "!=";
-          type = TokenType.NOT_EQ;
-        } else {
-          type = TokenType.BANG;
-        }
-        break;
-      }
-      case "{": {
-        type = TokenType.LBRACE;
-        break;
-      }
-      case "}": {
-        type = TokenType.RBRACE;
-        break;
-      }
-      case "(": {
-        type = TokenType.LPAREN;
-        break;
-      }
-      case ")": {
-        type = TokenType.RPAREN;
-        break;
-      }
-      case "[": {
-        type = TokenType.LBRACKET;
-        break;
-      }
-      case "]": {
-        type = TokenType.RBRACKET;
-        break;
-      }
-      case "<": {
-        type = TokenType.LT;
-        break;
-      }
-      case ">": {
-        type = TokenType.GT;
-        break;
-      }
-      case '"': {
-        type = TokenType.STRING;
-        literal = this.readString();
-        break;
-      }
-      default: {
-        if (isLetter(literal)) {
-          const literal = this.readIdentifier();
-          const type = getTokenTypeFromLiteral(literal);
-          return {
-            literal,
-            type,
-          };
-        }
-
-        if (isDigit(literal)) {
-          const literal = this.readNumber();
-          return {
-            literal,
-            type: TokenType.INT,
-          };
-        }
-
-        type = TokenType.ILLEGAL;
-      }
-    }
-
-    this.nextPosition();
-
-    return {
-      literal: literal ?? "\0",
-      type,
+      },
+      cursor: positionAfterWhitespaces,
     };
   }
 
-  private nextPosition(): void {
-    this.position++;
-  }
+  switch (ch) {
+    case "=": {
+      if (nextCh === "=") {
+        return {
+          token: { type: TokenType.EQ, literal: "==" },
+          cursor: positionAfterWhitespaces + 2,
+        };
+      }
 
-  private readIdentifier(): string {
-    const currentPosition = this.position;
-
-    while (isLetter(this.ch)) {
-      this.nextPosition();
+      return {
+        token: { type: TokenType.ASSIGN, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
     }
 
-    return this.input.substring(currentPosition, this.position);
+    case ";": {
+      return {
+        token: { type: TokenType.SEMICOLON, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case ":": {
+      return {
+        token: { type: TokenType.COLON, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case ",": {
+      return {
+        token: { type: TokenType.COMMA, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "+": {
+      return {
+        token: { type: TokenType.PLUS, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "-": {
+      return {
+        token: { type: TokenType.MINUS, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "*": {
+      return {
+        token: { type: TokenType.ASTERISK, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "/": {
+      return {
+        token: { type: TokenType.SLASH, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "!": {
+      if (nextCh === "=") {
+        return {
+          token: { type: TokenType.NOT_EQ, literal: "!=" },
+          cursor: positionAfterWhitespaces + 2,
+        };
+      }
+      return {
+        token: { type: TokenType.BANG, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "{": {
+      return {
+        token: { type: TokenType.LBRACE, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "}": {
+      return {
+        token: { type: TokenType.RBRACE, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "(": {
+      return {
+        token: { type: TokenType.LPAREN, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case ")": {
+      return {
+        token: { type: TokenType.RPAREN, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "[": {
+      return {
+        token: { type: TokenType.LBRACKET, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "]": {
+      return {
+        token: { type: TokenType.RBRACKET, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case "<": {
+      return {
+        token: { type: TokenType.LT, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case ">": {
+      return {
+        token: { type: TokenType.GT, literal: ch },
+        cursor: positionAfterWhitespaces + 1,
+      };
+    }
+    case '"': {
+      const [strLiteral, position] = readString(input, positionAfterWhitespaces + 1);
+      return {
+        token: { type: TokenType.STRING, literal: strLiteral },
+        cursor: position + 1,
+      };
+    }
+    default:
+      if (isLetter(ch)) {
+        const [identLiteral, position] = readIdentifier(input, positionAfterWhitespaces);
+        return {
+          token: {
+            type: getTokenTypeFromLiteral(identLiteral),
+            literal: identLiteral,
+          },
+          cursor: position,
+        };
+      }
+      if (isDigit(ch)) {
+        const [numberLiteral, position] = readNumber(input, positionAfterWhitespaces);
+        return {
+          token: { type: TokenType.INT, literal: numberLiteral },
+          cursor: position,
+        };
+      }
+      return {
+        token: { type: TokenType.ILLEGAL, literal: ch ?? "" },
+        cursor: cursor + 1,
+      };
+  }
+});
+
+sample({
+  clock: getNextToken,
+  source: { cursor: $cursor, input: $input },
+  target: nextTokenFx,
+});
+
+sample({
+  clock: nextTokenFx.doneData.map(({ cursor: position }) => position),
+  target: setCursor,
+});
+
+sample({
+  clock: nextTokenFx.doneData.map(({ token }) => token),
+  target: setToken,
+});
+
+export const skipWhitespace = (input: string, position: number): number => {
+  const ch = input[position];
+
+  if (!isWhitespace(ch)) {
+    return position;
   }
 
-  private readNumber(): string {
-    const currentPosition = this.position;
+  return skipWhitespace(input, position + 1);
+};
 
-    while (isDigit(this.ch)) {
-      this.nextPosition();
-    }
+export const readString = (
+  input: string,
+  initialPosition: number,
+  currentPosition: number = initialPosition,
+): [string, number] => {
+  const ch = input[currentPosition];
 
-    return this.input.substring(currentPosition, this.position);
+  if (ch === '"') {
+    return [input.substring(initialPosition, currentPosition), currentPosition];
   }
 
-  private skipWhitespace(): void {
-    while (isWhitespace(this.ch)) {
-      this.nextPosition();
-    }
+  return readString(input, initialPosition, currentPosition + 1);
+};
+
+export const readIdentifier = (
+  input: string,
+  initialPosition: number,
+  currentPosition: number = initialPosition,
+): [string, number] => {
+  const ch = input[currentPosition];
+
+  if (!isLetter(ch)) {
+    return [input.substring(initialPosition, currentPosition), currentPosition];
   }
 
-  private readString(): string {
-    this.nextPosition();
-    const currentPosition = this.position;
+  return readIdentifier(input, initialPosition, currentPosition + 1);
+};
 
-    while (this.ch !== '"') {
-      this.nextPosition();
-    }
+export const readNumber = (
+  input: string,
+  initialPosition: number,
+  currentPosition: number = initialPosition,
+): [string, number] => {
+  const ch = input[currentPosition];
 
-    return this.input.substring(currentPosition, this.position);
+  if (!isDigit(ch)) {
+    return [input.substring(initialPosition, currentPosition), currentPosition];
+  }
+
+  return readNumber(input, initialPosition, currentPosition + 1);
+};
+
+export class Lexer {
+  constructor(input: string) {
+    initLexer(input);
+  }
+
+  nextToken() {
+    getNextToken();
+    return $token.getState();
   }
 }
