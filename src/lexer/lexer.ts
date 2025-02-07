@@ -215,7 +215,7 @@ sample({
 export const skipWhitespace = (input: string, position: number): number => {
   const ch = input.at(position);
 
-  if (!isWhitespace(ch)) {
+  if (position >= input.length || !isWhitespace(ch)) {
     return position;
   }
 
@@ -229,7 +229,7 @@ export const readString = (
 ): [string, number] => {
   const ch = input.at(currentPosition);
 
-  if (ch === '"') {
+  if (currentPosition >= input.length || ch === '"') {
     return [input.substring(initialPosition, currentPosition), currentPosition];
   }
 
@@ -243,7 +243,7 @@ export const readIdentifier = (
 ): [string, number] => {
   const ch = input.at(currentPosition);
 
-  if (!isLetter(ch)) {
+  if (currentPosition >= input.length || !isLetter(ch)) {
     return [input.substring(initialPosition, currentPosition), currentPosition];
   }
 
@@ -257,7 +257,7 @@ export const readNumber = (
 ): [string, number] => {
   const ch = input.at(currentPosition);
 
-  if (!isDigit(ch)) {
+  if (currentPosition >= input.length || !isDigit(ch)) {
     return [input.substring(initialPosition, currentPosition), currentPosition];
   }
 
