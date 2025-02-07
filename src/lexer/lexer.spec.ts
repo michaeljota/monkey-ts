@@ -132,6 +132,20 @@ describe("Lexer", () => {
       expect(token).toEqual(expectedToken);
     });
   });
+
+  it("should generate last token when no semicolon at the end", () => {
+    const input = "true";
+    const expectedTokens: Token[] = [
+      { type: TokenType.TRUE, literal: "true" },
+    ];
+
+    const lexer = new Lexer(input);
+
+    expectedTokens.forEach((expectedToken) => {
+      const token = lexer.nextToken();
+      expect(token).toEqual(expectedToken);
+    });
+  });
 });
 
 describe("skipWhitespace", () => {
