@@ -90,4 +90,9 @@ export const Builtins: Readonly<Record<string, Builtin>> = {
 
     return new Array([newEl, ...array.elements]);
   }),
+  puts: new Builtin((...params) => {
+    console.info();
+    params.forEach((value) => console.info(`${value}`));
+    return NULL;
+  }),
 };
