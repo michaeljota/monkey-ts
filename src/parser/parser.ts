@@ -1,9 +1,7 @@
-import type { Lexer } from "::lexer/lexer";
 import { TokenType, type Token } from "::token";
 import {
   ArrayLiteral,
   BlockStatement,
-  BooleanLiteral,
   CallExpression,
   ExpressionPrecedence,
   ExpressionStatement,
@@ -13,27 +11,56 @@ import {
   IfExpression,
   IndexExpression,
   InfixExpression,
-  IntegerLiteral,
   LetStatement,
   PrefixExpression,
   Program,
   ReturnStatement,
-  StringLiteral,
   TokenOperatorPrecedences,
   type ExpressionUnion,
   type StatementUnion,
 } from "::ast";
 
 import type { TokenTypeDictionary, PrefixParserFn, InfixParserFn } from "./types";
+import { PrefixParserFns } from "./parserFns";
+import { $errors, initParser, pushError } from "./stores";
+import { createStore, sample } from "effector";
+import { $token, getNextToken } from "::lexer/lexer";
+
+const ILL_TOKEN: Token = { type: TokenType.ILLEGAL, literal: "\0" };
+
+const $currentToken = createStore<Token>(ILL_TOKEN).on(initParser, () => ILL_TOKEN);
+const $nextToken = createStore<Token>(ILL_TOKEN).on(initParser, () => ILL_TOKEN);
+
+// 2. Cuando el lexer publica un nuevo token en $token,
+//    hacemos el “shift”:
+//    - el $nextToken pasa a ser $currentToken
+//    - el token recién llegado desde el lexer se vuelve el $nextToken.
+const moveTokens = sample({
+  clock: $token, // cada vez que llega un nuevo token del lexer
+  source: $nextToken, // guardamos el valor "antiguo" de $nextToken
+  fn: (currentFromSource, nextFromClock) => {
+    return {
+      current: currentFromSource, // esto será el $currentToken
+      next: nextFromClock, // esto será el $nextToken
+    };
+  },
+});
+
+$currentToken.on(moveTokens, (_, { current }) => current);
+$nextToken.on(moveTokens, (_, { next }) => next);
 
 export class Parser {
-  private currentToken!: Token;
-  private peekToken!: Token;
-
   private readonly prefixParserFns: TokenTypeDictionary<PrefixParserFn> = {};
   private readonly infixParserFns: TokenTypeDictionary<InfixParserFn> = {};
-  readonly errors: string[] = [];
-
+  get errors(): readonly string[] {
+    return $errors.getState();
+  }
+  get currentToken(): Token {
+    return $currentToken.getState();
+  }
+  get peekToken(): Token {
+    return $nextToken.getState();
+  }
   get currentPrecedence(): ExpressionPrecedence {
     return TokenOperatorPrecedences[this.currentToken.type] ?? ExpressionPrecedence.LOWEST;
   }
@@ -42,17 +69,13 @@ export class Parser {
     return TokenOperatorPrecedences[this.peekToken.type] ?? ExpressionPrecedence.LOWEST;
   }
 
-  constructor(private readonly lexer: Lexer) {
-    this.nextToken();
-    this.nextToken();
+  constructor() {
+    initParser();
+    getNextToken();
+    getNextToken();
 
-    this.registerPrefixParser(TokenType.IDENT, this.parseIdentifier);
-    this.registerPrefixParser(TokenType.INT, this.parseIntegerLiteral);
-    this.registerPrefixParser(TokenType.STRING, this.parseStringLiteral);
     this.registerPrefixParser(TokenType.BANG, this.parsePrefixExpression);
     this.registerPrefixParser(TokenType.MINUS, this.parsePrefixExpression);
-    this.registerPrefixParser(TokenType.TRUE, this.parseBooleanExpression);
-    this.registerPrefixParser(TokenType.FALSE, this.parseBooleanExpression);
     this.registerPrefixParser(TokenType.LPAREN, this.parseGroupedExpression);
     this.registerPrefixParser(TokenType.IF, this.parseIfExpression);
     this.registerPrefixParser(TokenType.FUNCTION, this.parseFunctionLiteral);
@@ -72,13 +95,12 @@ export class Parser {
   }
 
   nextToken(): void {
-    this.currentToken = this.peekToken;
-    this.peekToken = this.lexer.nextToken();
+    getNextToken();
   }
 
   expectPeek(tokenType: TokenType): boolean {
     if (this.peekToken.type !== tokenType) {
-      this.errors.push(
+      pushError(
         `Next token expected to be ${tokenType}, but found ${this.peekToken.type} instead.`,
       );
       return false;
@@ -176,14 +198,15 @@ export class Parser {
   }
 
   parseExpression(precedence: ExpressionPrecedence): Maybe<ExpressionUnion> {
-    const prefixParser = this.prefixParserFns[this.currentToken.type];
+    const prefixParser =
+      this.prefixParserFns[this.currentToken.type] ?? PrefixParserFns[this.currentToken.type];
 
     if (!prefixParser) {
-      this.errors.push(`No prefix parser found for ${this.currentToken.type}.`);
+      pushError(`No prefix parser found for ${this.currentToken.type}.`);
       return;
     }
 
-    let leftExpression = prefixParser();
+    let leftExpression = prefixParser(this);
 
     while (this.peekToken.type !== TokenType.SEMICOLON && precedence < this.peekPrecedence) {
       const infixParser = this.infixParserFns[this.peekToken.type];
@@ -199,42 +222,6 @@ export class Parser {
 
     return leftExpression;
   }
-
-  parseIdentifier: PrefixParserFn = () => {
-    return new Identifier(this.currentToken, this.currentToken.literal);
-  };
-
-  parseIntegerLiteral: PrefixParserFn = () => {
-    const value = Number.parseInt(this.currentToken.literal, 10);
-    const coercionChecker = Number(this.currentToken.literal);
-
-    if (Number.isNaN(value) || Number.isNaN(coercionChecker)) {
-      this.errors.push(`Could not parse ${value} as integer`);
-      return;
-    }
-
-    return new IntegerLiteral(this.currentToken, value);
-  };
-
-  parseStringLiteral: PrefixParserFn = () => {
-    return new StringLiteral(this.currentToken, this.currentToken.literal);
-  };
-
-  parseBooleanExpression: PrefixParserFn = () => {
-    const value =
-      this.currentToken.type === TokenType.TRUE
-        ? true
-        : this.currentToken.type === TokenType.FALSE
-          ? false
-          : undefined;
-
-    if (value == null) {
-      this.errors.push(`Could not parse ${value} as boolean`);
-      return;
-    }
-
-    return new BooleanLiteral(this.currentToken, value);
-  };
 
   parseGroupedExpression: PrefixParserFn = () => {
     this.nextToken();

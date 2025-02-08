@@ -17,7 +17,6 @@ const EOF_TOKEN: Token = {
 };
 
 const initLexer = createEvent<string>();
-const getNextToken = createEvent();
 const setNextTokenResult = createEvent<NextTokenFxResult>();
 
 const $input = createStore("").on(initLexer, (_, newInput) => newInput);
@@ -26,7 +25,8 @@ const $cursor = createStore(0)
   .on(initLexer, () => 0)
   .on(setNextTokenResult, (_, { cursor }) => cursor);
 
-const $token = createStore(EOF_TOKEN)
+export const getNextToken = createEvent();
+export const $token = createStore(EOF_TOKEN)
   .on(initLexer, () => EOF_TOKEN)
   .on(setNextTokenResult, (_, { token }) => token);
 
