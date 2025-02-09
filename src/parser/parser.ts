@@ -74,7 +74,7 @@ export class Parser {
 
   nextToken(): void {
     this.currentToken = this.peekToken;
-    this.peekToken = this.lexer.nextToken();
+    this.peekToken = this.lexer.next().value;
   }
 
   expectPeek(tokenType: TokenType): boolean {

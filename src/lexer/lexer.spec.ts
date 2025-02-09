@@ -1,6 +1,6 @@
 import { expect, it, describe } from "bun:test";
 import { TokenType, type Token } from "::token";
-import { Lexer } from "./lexer";
+import { getLexer } from "./lexer";
 
 describe("Lexer", () => {
   it("should create the right tokens", () => {
@@ -122,14 +122,14 @@ describe("Lexer", () => {
       { type: TokenType.STRING, literal: "bar" },
       { type: TokenType.RBRACE, literal: "}" },
       { type: TokenType.SEMICOLON, literal: ";" },
-      { type: TokenType.EOF, literal: "" },
+      { type: TokenType.EOF, literal: "\0" },
     ];
 
-    const lexer = new Lexer(input);
+    const lexer = getLexer(input);
 
     expectedTokens.forEach((expectedToken) => {
-      const token = lexer.nextToken();
-      expect(token).toEqual(expectedToken);
+      const token = lexer.next();
+      expect(token.value).toEqual(expectedToken);
     });
   });
 });

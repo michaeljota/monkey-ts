@@ -1,191 +1,156 @@
 import { TokenType, type Token } from "::token";
-import { isLetter, getTokenTypeFromLiteral, isDigit, isWhitespace } from "::util";
+import {
+  skipWhitespace,
+  readString,
+  isLetter,
+  readIdentifier,
+  getTokenTypeFromLiteral,
+  isDigit,
+  readNumber,
+  isWhitespace,
+} from "./helpers";
 
-const NUL = Symbol("NUL");
+export type Lexer = Generator<Token, Token, void>;
 
-export class Lexer {
-  /**
-   * current position in input (points to current char)
-   */
-  private position: number = 0;
+export function* getLexer(input: string): Lexer {
+  let cursor: number = 0;
 
-  private get ch(): Maybe<string> {
-    return this.input.at(this.position);
-  }
+  while (cursor < input.length) {
+    cursor = skipWhitespace(input, cursor);
 
-  private get nextCh(): Maybe<string> {
-    return this.input.at(this.position + 1);
-  }
-
-  constructor(private readonly input: string) {}
-
-  nextToken(): Token {
-    this.skipWhitespace();
-
-    let literal = this.ch;
-    let type: TokenType;
-
-    if (this.position >= this.input.length) {
-      return {
-        literal: "",
-        type: TokenType.EOF,
-      };
+    if (cursor >= input.length) {
+      break;
     }
 
-    switch (literal) {
+    const ch = input.at(cursor);
+    const nextCh = input.at(cursor + 1);
+
+    switch (ch) {
       case "=": {
-        if (this.nextCh === "=") {
-          this.nextPosition();
-          literal = "==";
-          type = TokenType.EQ;
-        } else {
-          type = TokenType.ASSIGN;
+        cursor++;
+        if (nextCh === "=") {
+          cursor++;
+          yield { type: TokenType.EQ, literal: "==" };
+          break;
         }
+        yield { type: TokenType.ASSIGN, literal: ch };
         break;
       }
+
       case ";": {
-        type = TokenType.SEMICOLON;
+        cursor++;
+        yield { type: TokenType.SEMICOLON, literal: ch };
         break;
       }
       case ":": {
-        type = TokenType.COLON;
+        cursor++;
+        yield { type: TokenType.COLON, literal: ch };
         break;
       }
       case ",": {
-        type = TokenType.COMMA;
+        cursor++;
+        yield { type: TokenType.COMMA, literal: ch };
         break;
       }
       case "+": {
-        type = TokenType.PLUS;
+        cursor++;
+        yield { type: TokenType.PLUS, literal: ch };
         break;
       }
       case "-": {
-        type = TokenType.MINUS;
+        cursor++;
+        yield { type: TokenType.MINUS, literal: ch };
         break;
       }
       case "*": {
-        type = TokenType.ASTERISK;
+        cursor++;
+        yield { type: TokenType.ASTERISK, literal: ch };
         break;
       }
       case "/": {
-        type = TokenType.SLASH;
+        cursor++;
+        yield { type: TokenType.SLASH, literal: ch };
         break;
       }
       case "!": {
-        if (this.nextCh === "=") {
-          this.nextPosition();
-          literal = "!=";
-          type = TokenType.NOT_EQ;
-        } else {
-          type = TokenType.BANG;
+        cursor++;
+        if (nextCh === "=") {
+          cursor++;
+          yield { type: TokenType.NOT_EQ, literal: "!=" };
+          break;
         }
+        yield { type: TokenType.BANG, literal: ch };
         break;
       }
       case "{": {
-        type = TokenType.LBRACE;
+        cursor++;
+        yield { type: TokenType.LBRACE, literal: ch };
         break;
       }
       case "}": {
-        type = TokenType.RBRACE;
+        cursor++;
+        yield { type: TokenType.RBRACE, literal: ch };
         break;
       }
       case "(": {
-        type = TokenType.LPAREN;
+        cursor++;
+        yield { type: TokenType.LPAREN, literal: ch };
         break;
       }
       case ")": {
-        type = TokenType.RPAREN;
+        cursor++;
+        yield { type: TokenType.RPAREN, literal: ch };
         break;
       }
       case "[": {
-        type = TokenType.LBRACKET;
+        cursor++;
+        yield { type: TokenType.LBRACKET, literal: ch };
         break;
       }
       case "]": {
-        type = TokenType.RBRACKET;
+        cursor++;
+        yield { type: TokenType.RBRACKET, literal: ch };
         break;
       }
       case "<": {
-        type = TokenType.LT;
+        cursor++;
+        yield { type: TokenType.LT, literal: ch };
         break;
       }
       case ">": {
-        type = TokenType.GT;
+        cursor++;
+        yield { type: TokenType.GT, literal: ch };
         break;
       }
       case '"': {
-        type = TokenType.STRING;
-        literal = this.readString();
+        const [strLiteral, newCursor] = readString(input, cursor + 1);
+        cursor = newCursor + 1;
+        yield { type: TokenType.STRING, literal: strLiteral };
         break;
       }
-      default: {
-        if (isLetter(literal)) {
-          const literal = this.readIdentifier();
-          const type = getTokenTypeFromLiteral(literal);
-          return {
-            literal,
-            type,
+      default:
+        if (isLetter(ch)) {
+          const [identLiteral, newCursor] = readIdentifier(input, cursor);
+          cursor = newCursor;
+          yield {
+            type: getTokenTypeFromLiteral(identLiteral),
+            literal: identLiteral,
           };
+          break;
         }
-
-        if (isDigit(literal)) {
-          const literal = this.readNumber();
-          return {
-            literal,
-            type: TokenType.INT,
-          };
+        if (isDigit(ch)) {
+          const [numberLiteral, newCursor] = readNumber(input, cursor);
+          cursor = newCursor;
+          yield { type: TokenType.INT, literal: numberLiteral };
+          break;
         }
-
-        type = TokenType.ILLEGAL;
-      }
-    }
-
-    this.nextPosition();
-
-    return {
-      literal: literal ?? "\0",
-      type,
-    };
-  }
-
-  private nextPosition(): void {
-    this.position++;
-  }
-
-  private readIdentifier(): string {
-    const currentPosition = this.position;
-
-    while (isLetter(this.ch)) {
-      this.nextPosition();
-    }
-
-    return this.input.substring(currentPosition, this.position);
-  }
-
-  private readNumber(): string {
-    const currentPosition = this.position;
-
-    while (isDigit(this.ch)) {
-      this.nextPosition();
-    }
-
-    return this.input.substring(currentPosition, this.position);
-  }
-
-  private skipWhitespace(): void {
-    while (isWhitespace(this.ch)) {
-      this.nextPosition();
+        cursor++;
+        yield { type: TokenType.ILLEGAL, literal: ch ?? "\0" };
     }
   }
 
-  private readString(): string {
-    this.nextPosition();
-    const currentPosition = this.position;
-
-    while (this.ch !== '"') {
-      this.nextPosition();
-    }
-
-    return this.input.substring(currentPosition, this.position);
-  }
+  return {
+    type: TokenType.EOF,
+    literal: "\0",
+  };
 }

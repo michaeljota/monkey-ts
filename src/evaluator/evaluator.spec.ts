@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { Lexer } from "::lexer/lexer";
+import { getLexer } from "::lexer/lexer";
 import { Parser } from "::parser";
 import {
   Array,
@@ -19,7 +19,7 @@ import { evaluate } from "./evaluator";
 import { NULL } from "./staticValues";
 
 const setupEvaluator = (input: string): BaseObject => {
-  const lexer = new Lexer(input);
+  const lexer = getLexer(input);
   const parser = new Parser(lexer);
   const program = parser.parseProgram();
   const environment = new Environment();
