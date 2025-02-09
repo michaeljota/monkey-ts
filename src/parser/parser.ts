@@ -25,6 +25,7 @@ import {
 } from "::ast";
 
 import type { TokenTypeDictionary, PrefixParserFn, InfixParserFn } from "./types";
+import { getTokenTypeLiteral } from "./helpers";
 
 export class Parser {
   private currentToken!: Token;
@@ -79,7 +80,7 @@ export class Parser {
   expectPeek(tokenType: TokenType): boolean {
     if (this.peekToken.type !== tokenType) {
       this.errors.push(
-        `Next token expected to be ${tokenType}, but found ${this.peekToken.type} instead.`,
+        `Next token expected to be ${getTokenTypeLiteral(tokenType)}, but found ${this.peekToken.literal} instead.`,
       );
       return false;
     }
