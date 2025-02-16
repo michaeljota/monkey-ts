@@ -1,3 +1,4 @@
+import { event, state } from "signux";
 import {
   AstExpressionType,
   AstProgramType,
@@ -129,10 +130,12 @@ export const evaluate = (node: NodeUnion, environment: Environment): ObjectUnion
 };
 
 const evaluateProgram = (program: Program, environment: Environment): ObjectUnion => {
-  let result: ObjectUnion = NULL;
-
+  const updateResult = event<ObjectUnion>();
+  const $result = state<ObjectUnion>(NULL)
+    .on(updateResult, (_, result) => result)
+    .create();
   for (const statement of program.statements) {
-    result = evaluate(statement, environment);
+    const result = evaluate(statement, environment);
 
     if (result instanceof Return) {
       return result.value;
@@ -140,26 +143,32 @@ const evaluateProgram = (program: Program, environment: Environment): ObjectUnio
     if (result instanceof Error) {
       return result;
     }
+
+    updateResult(result);
   }
 
-  return result;
+  return $result();
 };
 
 const evaluateBlockStatements = (
   statements: StatementUnion[],
   environment: Environment,
 ): ObjectUnion => {
-  let result: ObjectUnion = NULL;
-
+  const updateResult = event<ObjectUnion>();
+  const $result = state<ObjectUnion>(NULL)
+    .on(updateResult, (_, result) => result)
+    .create();
   for (const statement of statements) {
-    result = evaluate(statement, environment);
+    const result = evaluate(statement, environment);
 
     if (result instanceof Return || result instanceof Error) {
       return result;
     }
+
+    updateResult(result);
   }
 
-  return result;
+  return $result();
 };
 
 const nativeBoolToBooleanObject = (input: boolean) => (input ? TRUE : FALSE);

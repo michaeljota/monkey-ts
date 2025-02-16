@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { getLexer } from "::lexer/lexer";
+import { createLexer } from "::lexer/lexer";
 import { parseProgram } from "::parser";
 import { evaluate } from "::evaluator/evaluator";
 import { Environment } from "::object";
@@ -24,7 +24,7 @@ Feel free to type in commands!
       break;
     }
 
-    const lexer = getLexer(line);
+    const lexer = createLexer(line);
     const [program, errors] = parseProgram(lexer);
 
     if (errors) {

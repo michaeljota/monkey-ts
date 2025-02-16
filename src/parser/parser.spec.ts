@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { getLexer } from "::lexer/lexer";
+import { createLexer } from "::lexer/lexer";
 import {
   ArrayLiteral,
   AstExpressionType,
@@ -26,7 +26,7 @@ import { TokenType } from "::token";
 import { parseProgram } from "./parser";
 
 const setupProgram = (input: string): ReturnType<typeof parseProgram> => {
-  const lexer = getLexer(input);
+  const lexer = createLexer(input);
   return parseProgram(lexer);
 };
 
@@ -43,7 +43,7 @@ describe("Parser", () => {
       let foobar = 838383;
     `;
 
-    const lexer = getLexer(input);
+    const lexer = createLexer(input);
     let program: Program;
 
     expect(() => {
@@ -64,7 +64,7 @@ describe("Parser", () => {
 
     const expectedIdentifiers = ["x", "y", "foobar"];
 
-    const lexer = getLexer(input);
+    const lexer = createLexer(input);
     const result = parseProgram(lexer);
     testResult(result);
     const [program] = result;

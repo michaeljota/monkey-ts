@@ -1,6 +1,7 @@
-import { TokenType } from "::token";
+import { TokenType, type Token } from "::token";
+import type { Lexer } from "::lexer/lexer";
 import { ExpressionPrecedence, TokenOperatorPrecedences } from "::ast";
-import type { Peekable, PeekableLexer, PeekableToken, TokenTypeDictionary } from "./types";
+import type { TokenTypeDictionary } from "./types";
 
 const TokenTypeToLiteralMap: TokenTypeDictionary<string> = {
   // Operators
@@ -29,37 +30,23 @@ const TokenTypeToLiteralMap: TokenTypeDictionary<string> = {
 const getTokenTypeLiteral = (expected: TokenType) =>
   TokenTypeToLiteralMap[expected] ?? TokenType[expected];
 
-export function* peekable<T>(gen: Generator<T, T>): Peekable<T> {
-  let peeked = gen.next();
-
-  while (!peeked.done) {
-    const current = peeked;
-    peeked = gen.next();
-
-    const peek = peeked.value;
-
-    yield { current: current.value, peek };
-  }
-
-  return { current: peeked.value };
-}
-
 export function getPrecedence(tokenType: TokenType): ExpressionPrecedence {
   return TokenOperatorPrecedences[tokenType] ?? ExpressionPrecedence.LOWEST;
 }
 
-export const getNextExpectedTokenPair = (
-  tokenPair: PeekableToken,
+export const getNextExpectedToken = (
+  lexer: Lexer,
   expectedTokenType: TokenType,
-  lexer: PeekableLexer,
-): Result<PeekableToken, string> => {
-  if (tokenPair.peek?.type !== expectedTokenType) {
+): Result<Token, string> => {
+  const peeked = lexer.peek();
+  if (peeked?.type !== expectedTokenType) {
     return [
       ,
-      `Next token expected to be ${getTokenTypeLiteral(expectedTokenType)}, but found ${tokenPair.peek?.literal ?? "no token"} instead.`,
+      `Next token expected to be ${getTokenTypeLiteral(expectedTokenType)}, but found ${peeked?.literal ?? "no token"} instead.`,
     ];
   }
 
-  const result = lexer.next();
-  return [result.value];
+  lexer.next();
+  const result = lexer.getToken();
+  return [result];
 };

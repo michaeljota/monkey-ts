@@ -1,6 +1,7 @@
+import { computed, event, state } from "signux";
 import { TokenType, type Token } from "::token";
 import {
-  skipWhitespace,
+  whitespaceSkipper,
   readString,
   isLetter,
   readIdentifier,
@@ -9,147 +10,120 @@ import {
   readNumber,
 } from "./helpers";
 
-export type Lexer = Generator<Token, Token, void>;
+export type Lexer = {
+  getToken(): Token;
+  next(): void;
+  peek(): Maybe<Token>;
+};
 
-export function* getLexer(input: string): Lexer {
-  let cursor: number = 0;
+export function createLexer(input: string): Lexer {
+  const advanceCursorTo = event<number>();
+  const $cursor = state(0)
+    .on(advanceCursorTo, (_, cursor) => cursor)
+    .create();
 
-  while (cursor < input.length) {
-    cursor = skipWhitespace(input, cursor);
-
-    if (cursor >= input.length) {
-      break;
-    }
-
-    const ch = input.at(cursor);
-    const nextCh = input.at(cursor + 1);
-
-    switch (ch) {
-      case "=": {
-        cursor++;
-        if (nextCh === "=") {
-          cursor++;
-          yield { type: TokenType.EQ, literal: "==" };
-          break;
-        }
-        yield { type: TokenType.ASSIGN, literal: ch };
-        break;
-      }
-
-      case ";": {
-        cursor++;
-        yield { type: TokenType.SEMICOLON, literal: ch };
-        break;
-      }
-      case ":": {
-        cursor++;
-        yield { type: TokenType.COLON, literal: ch };
-        break;
-      }
-      case ",": {
-        cursor++;
-        yield { type: TokenType.COMMA, literal: ch };
-        break;
-      }
-      case "+": {
-        cursor++;
-        yield { type: TokenType.PLUS, literal: ch };
-        break;
-      }
-      case "-": {
-        cursor++;
-        yield { type: TokenType.MINUS, literal: ch };
-        break;
-      }
-      case "*": {
-        cursor++;
-        yield { type: TokenType.ASTERISK, literal: ch };
-        break;
-      }
-      case "/": {
-        cursor++;
-        yield { type: TokenType.SLASH, literal: ch };
-        break;
-      }
-      case "!": {
-        cursor++;
-        if (nextCh === "=") {
-          cursor++;
-          yield { type: TokenType.NOT_EQ, literal: "!=" };
-          break;
-        }
-        yield { type: TokenType.BANG, literal: ch };
-        break;
-      }
-      case "{": {
-        cursor++;
-        yield { type: TokenType.LBRACE, literal: ch };
-        break;
-      }
-      case "}": {
-        cursor++;
-        yield { type: TokenType.RBRACE, literal: ch };
-        break;
-      }
-      case "(": {
-        cursor++;
-        yield { type: TokenType.LPAREN, literal: ch };
-        break;
-      }
-      case ")": {
-        cursor++;
-        yield { type: TokenType.RPAREN, literal: ch };
-        break;
-      }
-      case "[": {
-        cursor++;
-        yield { type: TokenType.LBRACKET, literal: ch };
-        break;
-      }
-      case "]": {
-        cursor++;
-        yield { type: TokenType.RBRACKET, literal: ch };
-        break;
-      }
-      case "<": {
-        cursor++;
-        yield { type: TokenType.LT, literal: ch };
-        break;
-      }
-      case ">": {
-        cursor++;
-        yield { type: TokenType.GT, literal: ch };
-        break;
-      }
-      case '"': {
-        const [strLiteral, newCursor] = readString(input, cursor + 1);
-        cursor = newCursor + 1;
-        yield { type: TokenType.STRING, literal: strLiteral };
-        break;
-      }
-      default:
-        if (isLetter(ch)) {
-          const [identLiteral, newCursor] = readIdentifier(input, cursor);
-          cursor = newCursor;
-          yield {
-            type: getTokenTypeFromLiteral(identLiteral),
-            literal: identLiteral,
-          };
-          break;
-        }
-        if (isDigit(ch)) {
-          const [numberLiteral, newCursor] = readNumber(input, cursor);
-          cursor = newCursor;
-          yield { type: TokenType.INT, literal: numberLiteral };
-          break;
-        }
-        cursor++;
-        yield { type: TokenType.ILLEGAL, literal: ch ?? "\0" };
-    }
-  }
+  const $token = computed(() => {
+    const [token] = readNextToken(input, $cursor());
+    return token;
+  });
 
   return {
-    type: TokenType.EOF,
-    literal: "\0",
+    next: () => {
+      const [, newCursor] = readNextToken(input, $cursor());
+      advanceCursorTo(newCursor);
+    },
+    getToken: () => $token(),
+    peek: () => {
+      const [, newCursor] = readNextToken(input, $cursor());
+      const [token] = readNextToken(input, newCursor);
+      return token;
+    },
   };
+}
+
+type TokenWithNext = [token: Token, nextPosition: number];
+
+function readNextToken(input: string, startCursor: number): TokenWithNext {
+  const cursor = whitespaceSkipper(startCursor, input);
+
+  if (cursor >= input.length) {
+    return [{ type: TokenType.EOF, literal: "\0" }, cursor];
+  }
+
+  const ch = input[cursor];
+  const nextCh = input[cursor + 1];
+
+  switch (ch) {
+    case "=":
+      if (nextCh === "=") return [{ type: TokenType.EQ, literal: "==" }, cursor + 2];
+      return [{ type: TokenType.ASSIGN, literal: "=" }, cursor + 1];
+
+    case ";":
+      return [{ type: TokenType.SEMICOLON, literal: ";" }, cursor + 1];
+
+    case ":":
+      return [{ type: TokenType.COLON, literal: ":" }, cursor + 1];
+
+    case ",":
+      return [{ type: TokenType.COMMA, literal: "," }, cursor + 1];
+
+    case "+":
+      return [{ type: TokenType.PLUS, literal: "+" }, cursor + 1];
+
+    case "-":
+      return [{ type: TokenType.MINUS, literal: "-" }, cursor + 1];
+
+    case "*":
+      return [{ type: TokenType.ASTERISK, literal: "*" }, cursor + 1];
+
+    case "/":
+      return [{ type: TokenType.SLASH, literal: "/" }, cursor + 1];
+
+    case "!":
+      if (nextCh === "=") return [{ type: TokenType.NOT_EQ, literal: "!=" }, cursor + 2];
+      return [{ type: TokenType.BANG, literal: "!" }, cursor + 1];
+
+    case "{":
+      return [{ type: TokenType.LBRACE, literal: "{" }, cursor + 1];
+
+    case "}":
+      return [{ type: TokenType.RBRACE, literal: "}" }, cursor + 1];
+
+    case "(":
+      return [{ type: TokenType.LPAREN, literal: "(" }, cursor + 1];
+
+    case ")":
+      return [{ type: TokenType.RPAREN, literal: ")" }, cursor + 1];
+
+    case "[":
+      return [{ type: TokenType.LBRACKET, literal: "[" }, cursor + 1];
+
+    case "]":
+      return [{ type: TokenType.RBRACKET, literal: "]" }, cursor + 1];
+
+    case "<":
+      return [{ type: TokenType.LT, literal: "<" }, cursor + 1];
+
+    case ">":
+      return [{ type: TokenType.GT, literal: ">" }, cursor + 1];
+
+    case '"': {
+      const [literal, endCursor] = readString(input, cursor + 1);
+      return [{ type: TokenType.STRING, literal }, endCursor + 1];
+    }
+
+    default: {
+      if (isLetter(ch)) {
+        const [literal, newCursor] = readIdentifier(input, cursor);
+        return [{ type: getTokenTypeFromLiteral(literal), literal }, newCursor];
+      }
+
+      if (isDigit(ch)) {
+        const [literal, newCursor] = readNumber(input, cursor);
+        return [{ type: TokenType.INT, literal }, newCursor];
+      }
+
+      return [{ type: TokenType.ILLEGAL, literal: "\0" }, cursor + 1];
+    }
+  }
 }

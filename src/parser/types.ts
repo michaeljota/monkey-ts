@@ -1,25 +1,14 @@
 import type { ExpressionUnion } from "::ast";
-import type { Token, TokenType } from "::token";
+import type { Lexer } from "::lexer/lexer";
+import type { TokenType } from "::token";
 
 export interface PrefixParserFn {
-  (tokenPair: PeekableToken, lexer: PeekableLexer): Result<State<ExpressionUnion>, string>;
+  (lexer: Lexer): Result<ExpressionUnion, string>;
 }
 
 export interface InfixParserFn {
-  (
-    tokenPair: PeekableToken,
-    leftSideExpression: ExpressionUnion,
-    lexer: PeekableLexer,
-  ): Result<State<ExpressionUnion>, string>;
+  (lexer: Lexer, leftSideExpression: ExpressionUnion): Result<ExpressionUnion, string>;
 }
-
-export type PeekableToken = PeekableNext<Token>;
-export type PeekableLexer = Peekable<Token>;
-
-export type State<T> = {
-  data: T;
-  tokenPair: PeekableToken;
-};
 
 export type TokenTypeDictionary<T> = Partial<Record<TokenType, T>>;
 

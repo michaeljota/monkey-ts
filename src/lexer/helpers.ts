@@ -26,16 +26,16 @@ export const getTokenTypeFromLiteral = (literal: string): TokenType =>
 const readStringToken =
   (isExpectedToken: (ch: Maybe<string>) => boolean) =>
   (input: string, cursor: number): [string, number] => {
-    let nextCursor = cursor;
+    const initialCursor = cursor;
 
-    while (cursor < input.length && isExpectedToken(input.at(nextCursor))) {
-      nextCursor++;
+    while (cursor < input.length && isExpectedToken(input.at(cursor))) {
+      cursor++;
     }
 
-    return [input.substring(cursor, nextCursor), nextCursor];
+    return [input.substring(initialCursor, cursor), cursor];
   };
 
-export const skipWhitespace = (input: string, cursor: number): number => {
+export const whitespaceSkipper = (cursor: number, input: string): number => {
   const [, nextCursor] = readStringToken(isWhitespace)(input, cursor);
   return nextCursor;
 };
