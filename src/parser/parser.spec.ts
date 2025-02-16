@@ -271,7 +271,7 @@ describe("Parser", () => {
       ExpressionStatement,
     );
 
-    testIdentifier((consequenceStatement as ExpressionStatement).expression, "x");
+    testIdentifier(consequenceStatement.expression, "x");
 
     expect(ifExpression.alternative).toBeUndefined();
   });
@@ -348,7 +348,7 @@ describe("Parser", () => {
   ];
 
   extendedFunctionTestCases.forEach(([input, expectedParams]) => {
-    it(`should parse function ${input} with ${expectedParams.length ? `arguments ${expectedParams}` : 'no arguments'}`, () => {
+    it(`should parse function ${input} with ${expectedParams.length ? `arguments ${expectedParams}` : "no arguments"}`, () => {
       const result = setupProgram(input);
       testResult(result);
       const [program] = result;
@@ -475,6 +475,8 @@ describe("Parser", () => {
   );
 });
 
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- We want to be able to send "any" data, and test that we are handling it correctly.  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const testLiteralExpression = (expression: ExpressionUnion, value: any): void => {
   switch (expression.type) {
     case AstExpressionType.Integer: {
@@ -494,6 +496,7 @@ const testLiteralExpression = (expression: ExpressionUnion, value: any): void =>
     }
   }
 };
+/* eslint-enable @typescript-eslint/no-unsafe-argument */
 
 const testIntegerLiteral = (expression: Expression, value: number): void => {
   const integerLiteral = getTestedExpression(expression, IntegerLiteral);
@@ -545,7 +548,7 @@ const getTestedBaseStatement = (program: Program): ExpressionStatement => {
 
 const getTestedExpression = <E extends Expression>(
   expression: Expression,
-  expressionClass: new (...args: any[]) => E,
+  expressionClass: Newable<E>,
 ): E => {
   expect(expression).toBeInstanceOf(expressionClass);
 
@@ -554,7 +557,7 @@ const getTestedExpression = <E extends Expression>(
 
 const getTestedStatement = <S extends Statement>(
   statement: Statement | undefined,
-  statementClass: new (...args: any[]) => S,
+  statementClass: Newable<S>,
 ): S => {
   expect(statement).toBeInstanceOf(statementClass);
 

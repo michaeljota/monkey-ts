@@ -21,11 +21,8 @@ import { NULL } from "./staticValues";
 const setupEvaluator = (input: string): BaseObject => {
   const lexer = getLexer(input);
   const [program] = parseProgram(lexer);
-  if (!program) {
-    throw new Error("");
-  }
   const environment = new Environment();
-  return evaluate(program, environment);
+  return evaluate(program!, environment);
 };
 
 describe("Evaluator", () => {

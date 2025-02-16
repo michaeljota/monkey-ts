@@ -9,10 +9,11 @@ export async function start(username: string) {
   const rl = createInterface({ input, output });
   const environment = new Environment();
 
-  rl.write(`Hello ${username}! This is the Monkey programming language!`);
-  rl.write("\n");
-  rl.write("Feel free to type in commands\n");
-  rl.write("\n");
+  console.log(
+    `Hello ${username}! This is the Monkey programming language!
+Feel free to type in commands!
+`,
+  );
 
   while (true) {
     const line = await rl.question(">> ");
@@ -27,7 +28,7 @@ export async function start(username: string) {
     const [program, errors] = parseProgram(lexer);
 
     if (errors) {
-      rl.write(`
+      console.log(`
             __,__
    .--.  .-"     "-.  .--.
   / .. \\/  .-. .-.  \\/ .. \\
@@ -40,9 +41,11 @@ export async function start(username: string) {
         '._ '-=-' _.'
            '-----'
 `);
-      rl.write("Woops! We ran into some monkey business here!");
-      rl.write("\n");
-      rl.write(`Parse error: ${errors.join("\n")}`);
+      console.log(
+        `Woops! We ran into some monkey business here!
+
+Parse error: ${errors.join("\n")}`,
+      );
       continue;
     }
 
@@ -52,8 +55,8 @@ export async function start(username: string) {
       continue;
     }
 
-    rl.write(`${evaluated}`);
-    rl.write("\n");
+    console.log(`${evaluated}
+`);
   }
 
   rl.close();

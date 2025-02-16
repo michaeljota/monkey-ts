@@ -4,9 +4,9 @@ import { start } from "::repl";
 function main() {
   const userInfo = os.userInfo();
 
-  const username = userInfo.username ?? "Unknown";
+  const username = userInfo.username;
 
-  start(username);
+  void start(username);
 }
 
 main();
