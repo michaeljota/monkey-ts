@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { getLexer } from "::lexer/lexer";
-import { Parser } from "::parser";
+import { parseProgram } from "::parser";
 import {
   Array,
   Boolean,
@@ -20,8 +20,10 @@ import { NULL } from "./staticValues";
 
 const setupEvaluator = (input: string): BaseObject => {
   const lexer = getLexer(input);
-  const parser = new Parser(lexer);
-  const program = parser.parseProgram();
+  const [program] = parseProgram(lexer);
+  if (!program) {
+    throw new Error("");
+  }
   const environment = new Environment();
   return evaluate(program, environment);
 };
@@ -402,7 +404,7 @@ addTwo(2);`,
   ];
 
   hashIndexTestCases.forEach(([input, expected]) =>
-    it.only(`should evaluate hash by index with input (${input}) to ${expected}`, () => {
+    it(`should evaluate hash by index with input (${input}) to ${expected}`, () => {
       const evaluated = setupEvaluator(input);
 
       switch (typeof expected) {

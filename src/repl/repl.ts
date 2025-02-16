@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { Lexer } from "::lexer/lexer";
-import { Parser } from "::parser";
+import { getLexer } from "::lexer/lexer";
+import { parseProgram } from "::parser";
 import { evaluate } from "::evaluator/evaluator";
 import { Environment } from "::object";
 
@@ -23,11 +23,10 @@ export async function start(username: string) {
       break;
     }
 
-    const lexer = new Lexer(line);
-    const parser = new Parser(lexer);
-    const program = parser.parseProgram();
+    const lexer = getLexer(line);
+    const [program, errors] = parseProgram(lexer);
 
-    if (parser.errors.length) {
+    if (errors) {
       rl.write(`
             __,__
    .--.  .-"     "-.  .--.
@@ -43,7 +42,7 @@ export async function start(username: string) {
 `);
       rl.write("Woops! We ran into some monkey business here!");
       rl.write("\n");
-      rl.write(`Parse error: ${parser.errors.join("\n")}`);
+      rl.write(`Parse error: ${errors.join("\n")}`);
       continue;
     }
 

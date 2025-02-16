@@ -1,5 +1,5 @@
 import type { Lexer } from "::lexer/lexer";
-import { TokenType, type Token } from "::token";
+import { TokenType } from "::token";
 import {
   ArrayLiteral,
   BlockStatement,
@@ -19,473 +19,683 @@ import {
   Program,
   ReturnStatement,
   StringLiteral,
-  TokenOperatorPrecedences,
   type ExpressionUnion,
   type StatementUnion,
 } from "::ast";
 
-import type { TokenTypeDictionary, PrefixParserFn, InfixParserFn } from "./types";
-import { getTokenTypeLiteral } from "./helpers";
+import type {
+  TokenTypeDictionary,
+  PrefixParserFn,
+  PeekableLexer,
+  PeekableToken,
+  State,
+  InfixParserFn,
+} from "./types";
+import { getNextExpectedTokenPair, getPrecedence, peekable } from "./helpers";
 
-export class Parser {
-  private currentToken!: Token;
-  private peekToken!: Token;
+export function parseProgram(lexer: Lexer): Result<Program, string[]> {
+  const statements: StatementUnion[] = [];
+  const errors: string[] = [];
+  const peekableLexer = peekable(lexer);
 
-  private readonly prefixParserFns: TokenTypeDictionary<PrefixParserFn> = {};
-  private readonly infixParserFns: TokenTypeDictionary<InfixParserFn> = {};
-  readonly errors: string[] = [];
+  let tokenPair = peekableLexer.next().value;
 
-  get currentPrecedence(): ExpressionPrecedence {
-    return TokenOperatorPrecedences[this.currentToken.type] ?? ExpressionPrecedence.LOWEST;
+  while (tokenPair.current.type !== TokenType.EOF) {
+    const [statement, err] = parseStatement(tokenPair, peekableLexer);
+
+    if (err != null) {
+      errors.push(err);
+      tokenPair = peekableLexer.next().value;
+      continue;
+    }
+
+    statements.push(statement);
+    tokenPair = peekableLexer.next().value;
   }
 
-  get peekPrecedence(): ExpressionPrecedence {
-    return TokenOperatorPrecedences[this.peekToken.type] ?? ExpressionPrecedence.LOWEST;
+  if (errors.length) {
+    return [, errors];
   }
-
-  constructor(private readonly lexer: Lexer) {
-    this.nextToken();
-    this.nextToken();
-
-    this.registerPrefixParser(TokenType.IDENT, this.parseIdentifier);
-    this.registerPrefixParser(TokenType.INT, this.parseIntegerLiteral);
-    this.registerPrefixParser(TokenType.STRING, this.parseStringLiteral);
-    this.registerPrefixParser(TokenType.BANG, this.parsePrefixExpression);
-    this.registerPrefixParser(TokenType.MINUS, this.parsePrefixExpression);
-    this.registerPrefixParser(TokenType.TRUE, this.parseBooleanExpression);
-    this.registerPrefixParser(TokenType.FALSE, this.parseBooleanExpression);
-    this.registerPrefixParser(TokenType.LPAREN, this.parseGroupedExpression);
-    this.registerPrefixParser(TokenType.IF, this.parseIfExpression);
-    this.registerPrefixParser(TokenType.FUNCTION, this.parseFunctionLiteral);
-    this.registerPrefixParser(TokenType.LBRACKET, this.parseArrayLiteral);
-    this.registerPrefixParser(TokenType.LBRACE, this.parseHashLiteral);
-
-    this.registerInfixParser(TokenType.EQ, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.NOT_EQ, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.LT, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.GT, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.PLUS, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.MINUS, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.SLASH, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.ASTERISK, this.parseInfixExpression);
-    this.registerInfixParser(TokenType.LPAREN, this.parseCallExpression);
-    this.registerInfixParser(TokenType.LBRACKET, this.parseIndexExpression);
-  }
-
-  nextToken(): void {
-    this.currentToken = this.peekToken;
-    this.peekToken = this.lexer.next().value;
-  }
-
-  expectPeek(tokenType: TokenType): boolean {
-    if (this.peekToken.type !== tokenType) {
-      this.errors.push(
-        `Next token expected to be ${getTokenTypeLiteral(tokenType)}, but found ${this.peekToken.literal} instead.`,
-      );
-      return false;
-    }
-
-    this.nextToken();
-    return true;
-  }
-
-  parseProgram(): Program {
-    const statements: StatementUnion[] = [];
-
-    while (this.currentToken.type !== TokenType.EOF) {
-      const statement = this.parseStatement();
-      if (statement) {
-        statements.push(statement);
-      }
-
-      this.nextToken();
-    }
-
-    return new Program(statements);
-  }
-
-  parseStatement(): Maybe<StatementUnion> {
-    switch (this.currentToken.type) {
-      case TokenType.LET:
-        return this.parseLetStatement();
-      case TokenType.RETURN:
-        return this.parseReturnStatement();
-      default:
-        return this.parseExpressionStatement();
-    }
-  }
-
-  parseLetStatement(): Maybe<LetStatement> {
-    const token = this.currentToken;
-
-    if (!this.expectPeek(TokenType.IDENT)) {
-      return;
-    }
-
-    const name = new Identifier(this.currentToken, this.currentToken.literal);
-
-    if (!this.expectPeek(TokenType.ASSIGN)) {
-      return;
-    }
-
-    this.nextToken();
-
-    const value = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-    if (!value) {
-      return;
-    }
-
-    if (this.peekToken.type === TokenType.SEMICOLON) {
-      this.nextToken();
-    }
-
-    return new LetStatement(token, name, value);
-  }
-
-  parseReturnStatement(): Maybe<ReturnStatement> {
-    const token = this.currentToken;
-
-    this.nextToken();
-
-    const returnValue = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-    if (!returnValue) {
-      return;
-    }
-
-    if (this.peekToken.type === TokenType.SEMICOLON) {
-      this.nextToken();
-    }
-
-    return new ReturnStatement(token, returnValue);
-  }
-
-  parseExpressionStatement(): Maybe<ExpressionStatement> {
-    const token = this.currentToken;
-    const expression = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-    if (this.peekToken.type === TokenType.SEMICOLON) {
-      this.nextToken();
-    }
-
-    if (!expression) {
-      return;
-    }
-
-    return new ExpressionStatement(token, expression);
-  }
-
-  parseExpression(precedence: ExpressionPrecedence): Maybe<ExpressionUnion> {
-    const prefixParser = this.prefixParserFns[this.currentToken.type];
-
-    if (!prefixParser) {
-      this.errors.push(`No prefix parser found for ${this.currentToken.type}.`);
-      return;
-    }
-
-    let leftExpression = prefixParser();
-
-    while (this.peekToken.type !== TokenType.SEMICOLON && precedence < this.peekPrecedence) {
-      const infixParser = this.infixParserFns[this.peekToken.type];
-
-      if (!infixParser || !leftExpression) {
-        return leftExpression;
-      }
-
-      this.nextToken();
-
-      leftExpression = infixParser(leftExpression);
-    }
-
-    return leftExpression;
-  }
-
-  parseIdentifier: PrefixParserFn = () => {
-    return new Identifier(this.currentToken, this.currentToken.literal);
-  };
-
-  parseIntegerLiteral: PrefixParserFn = () => {
-    const value = Number.parseInt(this.currentToken.literal, 10);
-    const coercionChecker = Number(this.currentToken.literal);
-
-    if (Number.isNaN(value) || Number.isNaN(coercionChecker)) {
-      this.errors.push(`Could not parse ${value} as integer`);
-      return;
-    }
-
-    return new IntegerLiteral(this.currentToken, value);
-  };
-
-  parseStringLiteral: PrefixParserFn = () => {
-    return new StringLiteral(this.currentToken, this.currentToken.literal);
-  };
-
-  parseBooleanExpression: PrefixParserFn = () => {
-    const value =
-      this.currentToken.type === TokenType.TRUE
-        ? true
-        : this.currentToken.type === TokenType.FALSE
-          ? false
-          : undefined;
-
-    if (value == null) {
-      this.errors.push(`Could not parse ${value} as boolean`);
-      return;
-    }
-
-    return new BooleanLiteral(this.currentToken, value);
-  };
-
-  parseGroupedExpression: PrefixParserFn = () => {
-    this.nextToken();
-    const expression = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-    if (!this.expectPeek(TokenType.RPAREN)) {
-      return;
-    }
-
-    return expression;
-  };
-
-  parseIfExpression: PrefixParserFn = () => {
-    const token = this.currentToken;
-    if (!this.expectPeek(TokenType.LPAREN)) {
-      return;
-    }
-    this.nextToken();
-    const condition = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-    if (!condition) {
-      return;
-    }
-
-    if (!this.expectPeek(TokenType.RPAREN)) {
-      return;
-    }
-
-    const consequence = this.parseBlockStatement();
-
-    if (!consequence) {
-      return;
-    }
-
-    let alternative: Maybe<BlockStatement>;
-
-    if (this.peekToken.type === TokenType.ELSE) {
-      this.nextToken();
-
-      alternative = this.parseBlockStatement();
-    }
-
-    return new IfExpression(token, condition, consequence, alternative);
-  };
-
-  parseBlockStatement(): Maybe<BlockStatement> {
-    if (!this.expectPeek(TokenType.LBRACE)) {
-      return;
-    }
-    const token = this.currentToken;
-    let statements: StatementUnion[] = [];
-
-    this.nextToken();
-
-    while (this.currentToken.type !== TokenType.RBRACE) {
-      const statement = this.parseStatement();
-      if (statement) {
-        statements.push(statement);
-      }
-      this.nextToken();
-    }
-
-    return new BlockStatement(token, statements);
-  }
-
-  parseFunctionLiteral: PrefixParserFn = () => {
-    const token = this.currentToken;
-
-    const parameters = this.parseFunctionParameters();
-    if (!parameters) {
-      return;
-    }
-
-    const body = this.parseBlockStatement();
-    if (!body) {
-      return;
-    }
-
-    return new FunctionLiteral(token, parameters, body);
-  };
-
-  parseFunctionParameters(): Maybe<Identifier[]> {
-    if (!this.expectPeek(TokenType.LPAREN)) {
-      return;
-    }
-
-    this.nextToken();
-
-    if (this.currentToken.type === TokenType.RPAREN) {
-      return [];
-    }
-
-    const identifiers: Identifier[] = [];
-
-    const identifier = new Identifier(this.currentToken, this.currentToken.literal);
-
-    identifiers.push(identifier);
-
-    while (this.peekToken.type === TokenType.COMMA) {
-      this.nextToken();
-      this.nextToken();
-
-      const identifier = new Identifier(this.currentToken, this.currentToken.literal);
-
-      identifiers.push(identifier);
-    }
-
-    if (!this.expectPeek(TokenType.RPAREN)) {
-      return;
-    }
-
-    return identifiers;
-  }
-
-  parseArrayLiteral: PrefixParserFn = () => {
-    const token = this.currentToken;
-    const elements = this.parseExpressionList(TokenType.RBRACKET);
-    if (!elements) {
-      return;
-    }
-    return new ArrayLiteral(token, elements);
-  };
-
-  parseHashLiteral: PrefixParserFn = () => {
-    const token = this.currentToken;
-    const pairs = new Map<ExpressionUnion, ExpressionUnion>();
-
-    while (this.peekToken.type !== TokenType.RBRACE) {
-      this.nextToken();
-      const key = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-      if (!key || !this.expectPeek(TokenType.COLON)) {
-        return;
-      }
-
-      this.nextToken();
-
-      const value = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-      if (!value) {
-        return;
-      }
-
-      pairs.set(key, value);
-
-      // @ts-ignore
-      if (this.peekToken.type !== TokenType.RBRACE && !this.expectPeek(TokenType.COMMA)) {
-        return;
-      }
-    }
-
-    if (!this.expectPeek(TokenType.RBRACE)) {
-    }
-
-    return new HashLiteral(token, pairs);
-  };
-
-  parseCallExpression: InfixParserFn = (functionIdentifier) => {
-    const token = this.currentToken;
-
-    const functionArguments = this.parseExpressionList(TokenType.RPAREN);
-
-    if (!functionArguments) {
-      return;
-    }
-
-    return new CallExpression(token, functionIdentifier, functionArguments);
-  };
-
-  parseExpressionList(closerToken: TokenType): Maybe<ExpressionUnion[]> {
-    if (this.peekToken.type === closerToken) {
-      this.nextToken();
-
-      return [];
-    }
-
-    this.nextToken();
-    const callArguments: ExpressionUnion[] = [];
-    const argument = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-    if (!argument) {
-      return;
-    }
-    callArguments.push(argument);
-
-    while (this.peekToken.type === TokenType.COMMA) {
-      this.nextToken();
-      this.nextToken();
-      const argument = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-      if (!argument) {
-        return;
-      }
-      callArguments.push(argument);
-    }
-
-    if (!this.expectPeek(closerToken)) {
-      return;
-    }
-
-    return callArguments;
-  }
-
-  parseIndexExpression: InfixParserFn = (left) => {
-    const token = this.currentToken;
-
-    this.nextToken();
-    const index = this.parseExpression(ExpressionPrecedence.LOWEST);
-
-    if (!this.expectPeek(TokenType.RBRACKET) || index == null) {
-      return;
-    }
-
-    return new IndexExpression(token, left, index);
-  };
-
-  parsePrefixExpression: PrefixParserFn = () => {
-    const currentToken = this.currentToken;
-    const operator = this.currentToken.literal;
-
-    this.nextToken();
-
-    const right = this.parseExpression(ExpressionPrecedence.PREFIX);
-
-    if (!right) {
-      return;
-    }
-
-    return new PrefixExpression(currentToken, operator, right);
-  };
-
-  parseInfixExpression: InfixParserFn = (left) => {
-    const currentToken = this.currentToken;
-    const operator = this.currentToken.literal;
-    const precedence = this.currentPrecedence;
-    this.nextToken();
-    const right = this.parseExpression(precedence);
-
-    if (!right) {
-      return;
-    }
-
-    return new InfixExpression(currentToken, right, operator, left);
-  };
-
-  registerPrefixParser(tokenType: TokenType, parser: PrefixParserFn) {
-    this.prefixParserFns[tokenType] = parser;
-  }
-
-  registerInfixParser(tokenType: TokenType, parser: InfixParserFn) {
-    this.infixParserFns[tokenType] = parser;
+  return [new Program(statements)];
+}
+
+function parseStatement(
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+): Result<StatementUnion, string> {
+  switch (tokenPair.current.type) {
+    case TokenType.LET:
+      return parseLetStatement(tokenPair, lexer);
+    case TokenType.RETURN:
+      return parseReturnStatement(tokenPair, lexer);
+    default:
+      return parseExpressionStatement(tokenPair, lexer);
   }
 }
+
+function parseLetStatement(
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+): Result<LetStatement, string> {
+  const token = tokenPair.current;
+
+  const [nameTokenPair, nameError] = getNextExpectedTokenPair(tokenPair, TokenType.IDENT, lexer);
+  if (nameError != null) {
+    return [, nameError];
+  }
+
+  const nameToken = nameTokenPair.current;
+
+  const name = new Identifier(nameToken, nameToken.literal);
+
+  const [, assignError] = getNextExpectedTokenPair(nameTokenPair, TokenType.ASSIGN, lexer);
+  if (assignError != null) {
+    return [, assignError];
+  }
+
+  const expressionTokenPair = lexer.next().value;
+
+  const [expressionResult, expressionError] = parseExpression(
+    expressionTokenPair,
+    ExpressionPrecedence.LOWEST,
+    lexer,
+  );
+
+  if (expressionError != null) {
+    return [, expressionError];
+  }
+
+  const { data: value, tokenPair: nextToken } = expressionResult;
+
+  if (nextToken.peek?.type === TokenType.SEMICOLON) {
+    lexer.next();
+  }
+
+  return [new LetStatement(token, name, value)];
+}
+
+function parseReturnStatement(
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+): Result<ReturnStatement, string> {
+  const token = tokenPair.current;
+
+  const returnToken = lexer.next().value;
+
+  const [result, error] = parseExpression(returnToken, ExpressionPrecedence.LOWEST, lexer);
+
+  if (error != null) {
+    return [, error];
+  }
+
+  const { data: expression, tokenPair: nextToken } = result;
+
+  if (nextToken.peek?.type === TokenType.SEMICOLON) {
+    lexer.next();
+  }
+
+  return [new ReturnStatement(token, expression)];
+}
+
+function parseExpressionStatement(
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+): Result<ExpressionStatement, string> {
+  const token = tokenPair.current;
+
+  const [result, error] = parseExpression(tokenPair, ExpressionPrecedence.LOWEST, lexer);
+
+  if (error != null) {
+    return [, error];
+  }
+
+  const { data: expression, tokenPair: nextTokenPair } = result;
+
+  if (nextTokenPair.peek?.type === TokenType.SEMICOLON) {
+    lexer.next();
+  }
+
+  return [new ExpressionStatement(token, expression)];
+}
+
+function parseBlockStatement(
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+): Result<State<BlockStatement>, string> {
+  const [nextTokenPair, nextError] = getNextExpectedTokenPair(tokenPair, TokenType.LBRACE, lexer);
+
+  if (nextError != null) {
+    return [, nextError];
+  }
+
+  const token = nextTokenPair.current;
+
+  const statementTokenPair = lexer.next().value;
+
+  const [result, error] = parseStatements(statementTokenPair, lexer);
+  if (error != null) {
+    return [, error];
+  }
+  const { data: statements, tokenPair: latestTokenPair } = result;
+
+  return [{ data: new BlockStatement(token, statements), tokenPair: latestTokenPair }];
+}
+
+function parseStatements(
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+  statements: StatementUnion[] = [],
+): Result<State<StatementUnion[]>, string> {
+  if (tokenPair.current.type === TokenType.RBRACE) {
+    return [{ data: statements, tokenPair }];
+  }
+
+  const [statement, error] = parseStatement(tokenPair, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  statements.push(statement);
+
+  const nextTokenPair = lexer.next().value;
+
+  return parseStatements(nextTokenPair, lexer, statements);
+}
+
+function parseExpression(
+  tokenPair: PeekableToken,
+  precedence: ExpressionPrecedence,
+  lexer: PeekableLexer,
+): Result<State<ExpressionUnion>, string> {
+  const prefixParser = PrefixParserFns[tokenPair.current.type];
+
+  if (!prefixParser) {
+    return [, `No prefix parser found for ${tokenPair.current.type}.`];
+  }
+
+  const [result, error] = prefixParser(tokenPair, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  return parseExpressionWithInfix(result, precedence, lexer);
+}
+
+const parseExpressionWithInfix = (
+  { data: expression, tokenPair }: State<ExpressionUnion>,
+  precedence: ExpressionPrecedence,
+  lexer: PeekableLexer,
+): Result<State<ExpressionUnion>, string> => {
+  if (
+    !tokenPair.peek ||
+    tokenPair.peek.type === TokenType.SEMICOLON ||
+    precedence >= getPrecedence(tokenPair.peek.type)
+  ) {
+    return [{ data: expression, tokenPair }];
+  }
+
+  const infixParser = InfixParserFns[tokenPair.peek.type];
+
+  if (!infixParser) {
+    return [{ data: expression, tokenPair }];
+  }
+
+  const nextTokenPair = lexer.next().value;
+  const [newState, error] = infixParser(nextTokenPair, expression, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  return parseExpressionWithInfix(newState, precedence, lexer);
+};
+
+const parseIdentifier: PrefixParserFn = (tokenPair) => {
+  return [
+    {
+      data: new Identifier(tokenPair.current, tokenPair.current.literal),
+      tokenPair,
+    },
+  ];
+};
+
+const parseIntegerLiteral: PrefixParserFn = (tokenPair) => {
+  const token = tokenPair.current;
+  const value = Number.parseInt(token.literal, 10);
+  const coercionChecker = Number(token.literal);
+
+  if (Number.isNaN(value) || Number.isNaN(coercionChecker)) {
+    return [, `Could not parse ${value} as integer`];
+  }
+
+  return [{ data: new IntegerLiteral(token, value), tokenPair }];
+};
+
+const parseStringLiteral: PrefixParserFn = (tokenPair) => {
+  return [
+    {
+      data: new StringLiteral(tokenPair.current, tokenPair.current.literal),
+      tokenPair,
+    },
+  ];
+};
+
+const BooleanTypeToNativeMap: Partial<Record<TokenType, boolean>> = {
+  [TokenType.TRUE]: true,
+  [TokenType.FALSE]: false,
+};
+
+const parseBooleanExpression: PrefixParserFn = (tokenPair) => {
+  const value = BooleanTypeToNativeMap[tokenPair.current.type];
+
+  if (value == null) {
+    return [, `Could not parse ${value} as boolean`];
+  }
+
+  return [{ data: new BooleanLiteral(tokenPair.current, value), tokenPair }];
+};
+
+const parseGroupedExpression: PrefixParserFn = (_, lexer) => {
+  const tokenPair = lexer.next().value;
+  const [result, error] = parseExpression(tokenPair, ExpressionPrecedence.LOWEST, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  const { data: expression, tokenPair: expressionTokenPair } = result;
+
+  const [closingParenTokenPair, closingParenError] = getNextExpectedTokenPair(
+    expressionTokenPair,
+    TokenType.RPAREN,
+    lexer,
+  );
+  if (closingParenError != null) {
+    return [, closingParenError];
+  }
+
+  return [{ data: expression, tokenPair: closingParenTokenPair }];
+};
+
+const parsePrefixExpression: PrefixParserFn = (tokenPair, lexer) => {
+  const currentToken = tokenPair.current;
+  const operator = tokenPair.current.literal;
+
+  const rightTokenPair = lexer.next().value;
+
+  const [result, error] = parseExpression(rightTokenPair, ExpressionPrecedence.PREFIX, lexer);
+
+  if (error != null) {
+    return [, error];
+  }
+  const { data: expression, tokenPair: latestTokenPair } = result;
+
+  return [
+    {
+      data: new PrefixExpression(currentToken, operator, expression),
+      tokenPair: latestTokenPair,
+    },
+  ];
+};
+
+const parseIfExpression: PrefixParserFn = (tokenPair, lexer) => {
+  const token = tokenPair.current;
+  const [, expectedLParenError] = getNextExpectedTokenPair(tokenPair, TokenType.LPAREN, lexer);
+  if (expectedLParenError != null) {
+    return [, expectedLParenError];
+  }
+
+  const conditionToken = lexer.next().value;
+  const [result, error] = parseExpression(conditionToken, ExpressionPrecedence.LOWEST, lexer);
+
+  if (error != null) {
+    return [, error];
+  }
+
+  const { data: condition, tokenPair: conditionTokenPair } = result;
+
+  const [consequenceToken, consequenceTokenError] = getNextExpectedTokenPair(
+    conditionTokenPair,
+    TokenType.RPAREN,
+    lexer,
+  );
+
+  if (consequenceTokenError != null) {
+    return [, consequenceTokenError];
+  }
+
+  const [consequenceResult, consequenceError] = parseBlockStatement(consequenceToken, lexer);
+
+  if (consequenceError != null) {
+    return [, consequenceError];
+  }
+
+  const { data: consequence, tokenPair: elseTokenPair } = consequenceResult;
+
+  const [elseResult, elseError] = parseElseExpression(elseTokenPair, lexer);
+  if (elseError != null) {
+    return [, elseError];
+  }
+
+  const { data: alternative, tokenPair: latestTokenPair } = elseResult;
+
+  return [
+    {
+      data: new IfExpression(token, condition, consequence, alternative),
+      tokenPair: latestTokenPair,
+    },
+  ];
+};
+
+const parseElseExpression = (
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+): Result<State<Maybe<BlockStatement>>, string> => {
+  if (tokenPair.peek?.type !== TokenType.ELSE) {
+    return [{ data: undefined, tokenPair }];
+  }
+  const alternativeToken = lexer.next().value;
+
+  const [result, error] = parseBlockStatement(alternativeToken, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  return [result];
+};
+
+function parseFunctionParameters(
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+): Result<State<Identifier[]>, string> {
+  const [, nameError] = getNextExpectedTokenPair(tokenPair, TokenType.LPAREN, lexer);
+  if (nameError != null) {
+    return [, nameError];
+  }
+
+  const nextTokenPair = lexer.next().value;
+
+  if (nextTokenPair.current.type === TokenType.RPAREN) {
+    return [{ data: [], tokenPair: nextTokenPair }];
+  }
+
+  const [{ parameters, tokenPair: parametersTokenPair }] = parseFunctionParametersList(
+    nextTokenPair,
+    lexer,
+  );
+
+  const [latestTokenPair, error] = getNextExpectedTokenPair(
+    parametersTokenPair,
+    TokenType.RPAREN,
+    lexer,
+  );
+  if (error != null) {
+    return [, error];
+  }
+
+  return [{ data: parameters, tokenPair: latestTokenPair }];
+}
+
+const parseFunctionParametersList = (
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+  parameters: Identifier[] = [],
+): Ok<{ parameters: Identifier[]; tokenPair: PeekableToken }> => {
+  const identifier = new Identifier(tokenPair.current, tokenPair.current.literal);
+
+  parameters.push(identifier);
+
+  if (tokenPair.peek?.type !== TokenType.COMMA) {
+    return [{ parameters, tokenPair }];
+  }
+
+  lexer.next();
+  const nextTokenPair = lexer.next().value;
+  return parseFunctionParametersList(nextTokenPair, lexer, parameters);
+};
+
+const parseFunctionLiteral: PrefixParserFn = (tokenPair, lexer) => {
+  const token = tokenPair.current;
+
+  const [result, error] = parseFunctionParameters(tokenPair, lexer);
+  if (error != null) {
+    return [, error];
+  }
+  const { data: parameters, tokenPair: parametersTokenPair } = result;
+
+  const [blockResult, blockError] = parseBlockStatement(parametersTokenPair, lexer);
+  if (blockError != null) {
+    return [, blockError];
+  }
+  const { data: body, tokenPair: blockTokenPair } = blockResult;
+
+  return [{ data: new FunctionLiteral(token, parameters, body), tokenPair: blockTokenPair }];
+};
+
+const parseArgumentsList = (
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+  argumentsList: ExpressionUnion[] = [],
+): Result<State<ExpressionUnion[]>, string> => {
+  const [state, error] = parseExpression(tokenPair, ExpressionPrecedence.LOWEST, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  argumentsList.push(state.data);
+
+  if (state.tokenPair.peek?.type !== TokenType.COMMA) {
+    return [{ data: argumentsList, tokenPair: state.tokenPair }];
+  }
+
+  lexer.next();
+  const nextTokenPair = lexer.next().value;
+  return parseArgumentsList(nextTokenPair, lexer, argumentsList);
+};
+
+function parseExpressionList(
+  closerToken: TokenType,
+  lexer: PeekableLexer,
+): Result<State<ExpressionUnion[]>, string> {
+  const tokenPair = lexer.next().value;
+  if (tokenPair.current.type === closerToken) {
+    return [{ data: [], tokenPair }];
+  }
+
+  const [state, error] = parseArgumentsList(tokenPair, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  const [latestTokenPair, nextError] = getNextExpectedTokenPair(
+    state.tokenPair,
+    closerToken,
+    lexer,
+  );
+  if (nextError != null) {
+    return [, nextError];
+  }
+
+  return [{ data: state.data, tokenPair: latestTokenPair }];
+}
+
+const parseArrayLiteral: PrefixParserFn = (tokenPair, lexer) => {
+  const token = tokenPair.current;
+  const [state, error] = parseExpressionList(TokenType.RBRACKET, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  const { data: argumentsList, tokenPair: latestTokenPair } = state;
+  return [{ data: new ArrayLiteral(token, argumentsList), tokenPair: latestTokenPair }];
+};
+
+type NativeHashMap = Map<ExpressionUnion, ExpressionUnion>;
+
+const parseHashMap = (
+  tokenPair: PeekableToken,
+  lexer: PeekableLexer,
+  pairs: NativeHashMap = new Map(),
+): Result<State<NativeHashMap>, string> => {
+  if (tokenPair.peek?.type === TokenType.RBRACE) {
+    return [{ data: pairs, tokenPair }];
+  }
+
+  const keyTokenPair = lexer.next().value;
+  const [keyState, keyError] = parseExpression(keyTokenPair, ExpressionPrecedence.LOWEST, lexer);
+  if (keyError != null) {
+    return [, keyError];
+  }
+
+  const [, error] = getNextExpectedTokenPair(keyState.tokenPair, TokenType.COLON, lexer);
+  if (error != null) {
+    return [, error];
+  }
+
+  const valueTokenPair = lexer.next().value;
+
+  const [valueState, valueError] = parseExpression(
+    valueTokenPair,
+    ExpressionPrecedence.LOWEST,
+    lexer,
+  );
+  if (valueError != null) {
+    return [, valueError];
+  }
+
+  pairs.set(keyState.data, valueState.data);
+
+  if (valueState.tokenPair.peek?.type !== TokenType.RBRACE) {
+    const [tokenPair, error] = getNextExpectedTokenPair(
+      valueState.tokenPair,
+      TokenType.COMMA,
+      lexer,
+    );
+    if (error != null) {
+      return [, error];
+    }
+
+    return parseHashMap(tokenPair, lexer, pairs);
+  }
+
+  return parseHashMap(valueState.tokenPair, lexer, pairs);
+};
+
+const parseHashLiteral: PrefixParserFn = (tokenPair, lexer) => {
+  const token = tokenPair.current;
+
+  const [hashResult, hashError] = parseHashMap(tokenPair, lexer);
+  if (hashError != null) {
+    return [, hashError];
+  }
+  const { data: pairs, tokenPair: afterHashTokenPair } = hashResult;
+
+  const [rbracePair, rbraceError] = getNextExpectedTokenPair(
+    afterHashTokenPair,
+    TokenType.RBRACE,
+    lexer,
+  );
+  if (rbraceError != null) {
+    return [, rbraceError];
+  }
+
+  return [{ data: new HashLiteral(token, pairs), tokenPair: rbracePair }];
+};
+
+const PrefixParserFns: TokenTypeDictionary<PrefixParserFn> = {
+  [TokenType.IDENT]: parseIdentifier,
+  [TokenType.INT]: parseIntegerLiteral,
+  [TokenType.STRING]: parseStringLiteral,
+  [TokenType.BANG]: parsePrefixExpression,
+  [TokenType.MINUS]: parsePrefixExpression,
+  [TokenType.TRUE]: parseBooleanExpression,
+  [TokenType.FALSE]: parseBooleanExpression,
+  [TokenType.LPAREN]: parseGroupedExpression,
+  [TokenType.IF]: parseIfExpression,
+  [TokenType.FUNCTION]: parseFunctionLiteral,
+  [TokenType.LBRACKET]: parseArrayLiteral,
+  [TokenType.LBRACE]: parseHashLiteral,
+};
+
+const parseInfixExpression: InfixParserFn = (tokenPair, left, lexer) => {
+  const token = tokenPair.current;
+  const operator = token.literal;
+  const precedence = getPrecedence(token.type);
+
+  const rightTokenPair = lexer.next().value;
+  const [result, error] = parseExpression(rightTokenPair, precedence, lexer);
+
+  if (error != null) {
+    return [, error];
+  }
+
+  const { data: expression, tokenPair: latestTokenPair } = result;
+
+  return [
+    {
+      data: new InfixExpression(token, expression, operator, left),
+      tokenPair: latestTokenPair,
+    },
+  ];
+};
+
+const parseCallExpression: InfixParserFn = (tokenPair, functionIdentifier, lexer) => {
+  const token = tokenPair.current;
+
+  const [state, error] = parseExpressionList(TokenType.RPAREN, lexer);
+
+  if (error != null) {
+    return [, error];
+  }
+
+  const { data: argumentsList, tokenPair: latestTokenPair } = state;
+
+  return [
+    {
+      data: new CallExpression(token, functionIdentifier, argumentsList),
+      tokenPair: latestTokenPair,
+    },
+  ];
+};
+
+const parseIndexExpression: InfixParserFn = (tokenPair, left, lexer) => {
+  const token = tokenPair.current;
+
+  const indexTokenPair = lexer.next().value;
+  const [indexState, indexError] = parseExpression(
+    indexTokenPair,
+    ExpressionPrecedence.LOWEST,
+    lexer,
+  );
+
+  if (indexError != null) {
+    return [, indexError];
+  }
+
+  const [latestTokenPair, error] = getNextExpectedTokenPair(
+    indexState.tokenPair,
+    TokenType.RBRACKET,
+    lexer,
+  );
+  if (error != null) {
+    return [, error];
+  }
+
+  return [
+    {
+      data: new IndexExpression(token, left, indexState.data),
+      tokenPair: latestTokenPair,
+    },
+  ];
+};
+
+export const InfixParserFns: TokenTypeDictionary<InfixParserFn> = {
+  [TokenType.EQ]: parseInfixExpression,
+  [TokenType.NOT_EQ]: parseInfixExpression,
+  [TokenType.LT]: parseInfixExpression,
+  [TokenType.GT]: parseInfixExpression,
+  [TokenType.PLUS]: parseInfixExpression,
+  [TokenType.MINUS]: parseInfixExpression,
+  [TokenType.SLASH]: parseInfixExpression,
+  [TokenType.ASTERISK]: parseInfixExpression,
+  [TokenType.LPAREN]: parseCallExpression,
+  [TokenType.LBRACKET]: parseIndexExpression,
+};

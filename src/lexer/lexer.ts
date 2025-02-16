@@ -7,7 +7,6 @@ import {
   getTokenTypeFromLiteral,
   isDigit,
   readNumber,
-  isWhitespace,
 } from "./helpers";
 
 export type Lexer = Generator<Token, Token, void>;
