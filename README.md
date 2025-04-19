@@ -29,10 +29,28 @@ Monkey is the programming language described in the book _Writing an Interpreter
 
 ## About Monkey.ts
 
-This repository contains a TypeScript implementation of the process laid out in the book. Initially, the approach was heavily object-oriented, but once I got a working interpreter, I decided to experiment further.
+This repository contains a TypeScript implementation of the process laid out in the book. Initially, it was using object-oriented programming. Once I got a working version, I decided to experiment further, and rewrote it. First in a more functional style, and then a full‑blown reactive flavour with [Signux](https://michaeljota.github.io/signux/). Again, nothing production‑ready, just experiments that were fun to hack on.
 
-The latest version on the `main` branch is no longer the initial OOP-based implementation. Instead, it has been refactored to emphasize functional programming. For instance, the lexer has been converted into a generator function rather than a class, and the evaluator has always been a pure function. Only the parser still remains as a class.
+## Branches at a glance
 
-There is also an `effector` branch, which embraces functional and reactive programming using the [Effector](https://effector.dev/) library. In that branch, the lexer has been fully ported to Effector, and the parser port is in progress.
+### `main`  – functional take
 
-All of these changes are part of my ongoing experiments and an opportunity to apply my knowledge of TypeScript and JavaScript.
+- **Lexer** → plain JS generator (`for…of lexer()` to get tokens).
+- **Parser** → a bunch of pure Pratt helpers that chew the generator.
+- **Evaluator** → always was a pure function, so I left it mostly untouched.
+
+### `signux`  – functional + FRP
+
+- Same core but every piece talks through Signux events/stores.
+- You still _pull_ tokens, but you can also _react_ to them — perfect for live‑coding UIs.
+- The parser exposes both a reactive state and a Promise wrapper (`await parseProgram()`).
+
+---
+
+## Why bother?
+
+Because:
+
+- I wanted an excuse to practise FP/FRP in a tiny codebase.
+- Generators keep memory low and make REPL streaming super easy.
+- Signux lets me time‑travel debug the interpreter. Although this has not been implemented, the Lexer would allow it easily. Nerdy, but neat.
