@@ -25,38 +25,33 @@ Feel free to type in commands!
     }
 
     const lexer = createLexer(line);
-    const [program, errors] = await parseProgram(lexer);
+    try {
+      const program = await parseProgram(lexer);
 
-    if (errors) {
+      const evaluated = evaluate(program, environment);
+
+      console.log(`${evaluated}
+`);
+    } catch (errors) {
       console.log(`
-            __,__
-   .--.  .-"     "-.  .--.
-  / .. \\/  .-. .-.  \\/ .. \\
- | |  '|  /   Y   \\  |'  | |
- | \\   \\  \\ 0 | 0 /  /   / |
-  \\ '- ,\\.-"""""""-./, -' /
-   ''-' /_   ^ ^   _\\ '-''
-       |  \\._   _./  |
-       \\   \\ '~' /   /
-        '._ '-=-' _.'
-           '-----'
+         __,__
+.--.  .-"     "-.  .--.
+/ .. \\/  .-. .-.  \\/ .. \\
+| |  '|  /   Y   \\  |' | |
+| \\   \\  \\ 0 | 0 /  /  / |
+\\ '- ,\\.-"""""""-./, -' /
+ ''-' /_   ^ ^   _\\ '-''
+    |  \\._   _./  |
+     \\   \\ '~' /   /
+      '._ '-=-' _.'
+         '-----'
 `);
       console.log(
         `Woops! We ran into some monkey business here!
 
-Parse error: ${errors.join("\n")}`,
+Parse error: ${errors}`,
       );
-      continue;
     }
-
-    const evaluated = evaluate(program, environment);
-
-    if (!evaluated) {
-      continue;
-    }
-
-    console.log(`${evaluated}
-`);
   }
 
   rl.close();

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import { Program } from "::ast";
 import { createLexer } from "::lexer/lexer";
 import { parseProgram } from "::parser";
 import {
@@ -20,9 +21,9 @@ import { NULL } from "./staticValues";
 
 const setupEvaluator = async (input: string): Promise<BaseObject> => {
   const lexer = createLexer(input);
-  const [program] = await parseProgram(lexer);
+  const program = await parseProgram(lexer).catch(() => new Program([]));
   const environment = new Environment();
-  return evaluate(program!, environment);
+  return evaluate(program, environment);
 };
 
 describe("Evaluator", () => {

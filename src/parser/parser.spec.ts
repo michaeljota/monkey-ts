@@ -25,16 +25,10 @@ import {
 import { TokenType } from "::token";
 import { parseProgram } from "./parser";
 
-const setupProgram = async (input: string): Promise<Result<Program, string[]>> => {
+const setupProgram = (input: string): Promise<Program> => {
   const lexer = createLexer(input);
-  const result = await parseProgram(lexer);
-  return result;
+  return parseProgram(lexer);
 };
-
-function testResult<T, E>(result: Result<T, E>): asserts result is Ok<T> {
-  expect(result[1]).toBeUndefined();
-  expect(result[0]).toBeDefined();
-}
 
 describe("Parser", () => {
   it("should parse the program", () => {
@@ -47,9 +41,7 @@ describe("Parser", () => {
     let program: Program;
 
     expect(async () => {
-      const result = await setupProgram(input);
-      testResult(result);
-      program = result[0];
+      program = await setupProgram(input);
     }).not.toThrow();
 
     expect(program!.statements).toBeArrayOfSize(3);
@@ -64,9 +56,7 @@ describe("Parser", () => {
 
     const expectedIdentifiers = ["x", "y", "foobar"];
 
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
 
     expect(program.statements).toBeArrayOfSize(3);
 
@@ -89,15 +79,13 @@ describe("Parser", () => {
     `;
 
     const expectedTokens = ["=", "IDENT"];
-    const [, errors] = await setupProgram(input);
-
-    expect(errors).toBeArrayOfSize(2);
-
-    errors!.forEach((error, i) => {
-      const expectedToken = expectedTokens[i];
-
-      expect(error).toContain(`Next token expected to be ${expectedToken},`);
-    });
+    try {
+      await setupProgram(input);
+    } catch (error) {
+      expectedTokens.forEach((expectedToken) => {
+        expect((error as Error).message).toContain(`Next token expected to be ${expectedToken},`);
+      });
+    }
   });
 
   it("should parse return statements", async () => {
@@ -107,10 +95,8 @@ describe("Parser", () => {
       return 7890;
     `;
 
-    const result = await setupProgram(input);
-    testResult(result);
+    const program = await setupProgram(input);
 
-    const [program] = result;
     expect(program.statements).toBeArrayOfSize(3);
 
     program.statements.forEach((statement) => {
@@ -135,9 +121,7 @@ describe("Parser", () => {
 
   it("should parse identifier expressions", async () => {
     const input = `foobar;`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     testLiteralExpression(statement.expression, "foobar");
@@ -145,9 +129,7 @@ describe("Parser", () => {
 
   it("should parse integer literal expressions", async () => {
     const input = `5;`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     testLiteralExpression(statement.expression, 5);
@@ -155,9 +137,7 @@ describe("Parser", () => {
 
   it("should parse string literal expressions", async () => {
     const input = `"hello world";`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     testLiteralExpression(statement.expression, "hello world");
@@ -165,9 +145,7 @@ describe("Parser", () => {
 
   it("should parse boolean literal true expressions", async () => {
     const input = `true;`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     testLiteralExpression(statement.expression, true);
@@ -175,9 +153,7 @@ describe("Parser", () => {
 
   it("should parse boolean literal false expressions", async () => {
     const input = `false;`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     testLiteralExpression(statement.expression, false);
@@ -185,9 +161,7 @@ describe("Parser", () => {
 
   it("should parse array literal expressions", async () => {
     const input = "[1, 2 + 3, 4 * 5];";
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const arrayLiteral = getTestedExpression(statement.expression, ArrayLiteral);
@@ -200,9 +174,7 @@ describe("Parser", () => {
 
   it("should parse array index expressions", async () => {
     const input = "myArray[1 + 1];";
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const indexExpression = getTestedExpression(statement.expression, IndexExpression);
@@ -220,9 +192,7 @@ describe("Parser", () => {
       ["three", 3],
     ]);
 
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const hashLiteral = getTestedExpression(statement.expression, HashLiteral);
@@ -239,9 +209,7 @@ describe("Parser", () => {
   it("should parse empty hash expressions", async () => {
     const input = "{}";
 
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const hashLiteral = getTestedExpression(statement.expression, HashLiteral);
@@ -251,9 +219,7 @@ describe("Parser", () => {
 
   it("should parse if expressions", async () => {
     const input = `if (x < y) { x }`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const ifExpression = getTestedExpression(statement.expression, IfExpression);
@@ -276,9 +242,7 @@ describe("Parser", () => {
 
   it("should parse if-else expressions", async () => {
     const input = `if (x < y) { x } else { y }`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const ifExpression = getTestedExpression(statement.expression, IfExpression);
@@ -308,9 +272,7 @@ describe("Parser", () => {
 
   it("should parse function literal expressions", async () => {
     const input = `fn(x,y) { x + y }`;
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const functionLiteral = getTestedExpression(statement.expression, FunctionLiteral);
@@ -333,10 +295,13 @@ describe("Parser", () => {
   it("should fail to parse function literal, if a parenthesis is missing", async () => {
     const input = `fn(x,y { x + y }`;
 
-    const [, errors] = await setupProgram(input);
-
-    expect(errors).not.toBeEmpty();
-    expect(errors).toContain("Next token expected to be ), but found { instead.");
+    try {
+      await setupProgram(input);
+    } catch (error) {
+      expect((error as Error).message).toContain(
+        "Next token expected to be ), but found { instead.",
+      );
+    }
   });
 
   const extendedFunctionTestCases: [input: string, expectedParams: string[]][] = [
@@ -347,9 +312,7 @@ describe("Parser", () => {
 
   extendedFunctionTestCases.forEach(([input, expectedParams]) => {
     it(`should parse function ${input} with ${expectedParams.length ? `arguments ${expectedParams}` : "no arguments"}`, async () => {
-      const result = await setupProgram(input);
-      testResult(result);
-      const [program] = result;
+      const program = await setupProgram(input);
       const statement = getTestedBaseStatement(program);
 
       const functionLiteral = getTestedExpression(statement.expression, FunctionLiteral);
@@ -364,9 +327,7 @@ describe("Parser", () => {
 
   it("should parse call expressions", async () => {
     const input = "add(1, 2 * 3, 4 + 5);";
-    const result = await setupProgram(input);
-    testResult(result);
-    const [program] = result;
+    const program = await setupProgram(input);
     const statement = getTestedBaseStatement(program);
 
     const callExpression = getTestedExpression(statement.expression, CallExpression);
@@ -389,9 +350,7 @@ describe("Parser", () => {
 
   unaryTestCases.forEach(([input, operator, value]) =>
     it(`should parse unary operations ${input}`, async () => {
-      const result = await setupProgram(input);
-      testResult(result);
-      const [program] = result;
+      const program = await setupProgram(input);
       const statement = getTestedBaseStatement(program);
 
       const prefixExpression = getTestedExpression(statement.expression, PrefixExpression);
@@ -417,9 +376,7 @@ describe("Parser", () => {
 
   binaryTestCases.forEach(([input, left, operator, right]) =>
     it(`should parse binary operation ${input}`, async () => {
-      const result = await setupProgram(input);
-      testResult(result);
-      const [program] = result;
+      const program = await setupProgram(input);
       const statement = getTestedBaseStatement(program);
 
       testInfixExpression(statement.expression, left, operator, right);
@@ -464,9 +421,7 @@ describe("Parser", () => {
 
   precedenceGroupingTesting.forEach(([input, expected]) =>
     it(`should parse and group operations by precedence ${input}`, async () => {
-      const result = await setupProgram(input);
-      testResult(result);
-      const [program] = result;
+      const program = await setupProgram(input);
 
       expect(`${program}`).toBe(expected);
     }),

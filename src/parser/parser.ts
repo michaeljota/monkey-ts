@@ -79,17 +79,17 @@ export function createParser(lexer: Lexer): Parser {
   };
 }
 
-export async function parseProgram(lexer: Lexer): Promise<Result<Program, string[]>> {
+export async function parseProgram(lexer: Lexer): Promise<Program> {
   const parser = createParser(lexer);
   parser.start();
 
   await waitUntil(parser.$done);
 
   if (parser.$errors().length) {
-    return [, parser.$errors()];
+    throw new Error(parser.$errors().join(",\n"));
   }
 
-  return [parser.$program()];
+  return parser.$program();
 }
 
 function parseStatement(lexer: Lexer): Result<StatementUnion, string> {
