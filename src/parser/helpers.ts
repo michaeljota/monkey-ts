@@ -38,7 +38,7 @@ export const getNextExpectedToken = (
   lexer: Lexer,
   expectedTokenType: TokenType,
 ): Result<Token, string> => {
-  const peeked = lexer.peek();
+  const peeked = lexer.$previewToken();
   if (peeked?.type !== expectedTokenType) {
     return [
       ,
@@ -46,7 +46,7 @@ export const getNextExpectedToken = (
     ];
   }
 
-  lexer.next();
-  const result = lexer.getToken();
+  lexer.advanceToken();
+  const result = lexer.$currentToken();
   return [result];
 };

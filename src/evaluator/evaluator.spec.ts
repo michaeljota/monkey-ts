@@ -18,9 +18,9 @@ import {
 import { evaluate } from "./evaluator";
 import { NULL } from "./staticValues";
 
-const setupEvaluator = (input: string): BaseObject => {
+const setupEvaluator = async (input: string): Promise<BaseObject> => {
   const lexer = createLexer(input);
-  const [program] = parseProgram(lexer);
+  const [program] = await parseProgram(lexer);
   const environment = new Environment();
   return evaluate(program!, environment);
 };
@@ -45,8 +45,8 @@ describe("Evaluator", () => {
   ];
 
   integerTestCases.forEach(([input, expected]) =>
-    it(`should evaluate integer input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate integer input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       testIntegerObject(evaluated, expected);
     }),
@@ -65,8 +65,8 @@ describe("Evaluator", () => {
   ];
 
   stringTestCases.forEach(([input, expected]) => {
-    it(`should evaluate string input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate string input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       expect(evaluated).toBeInstanceOf(String);
       expect((evaluated as String).value).toBe(expected);
@@ -76,8 +76,8 @@ describe("Evaluator", () => {
   const arrayTestCases: [input: string, expected: number[]][] = [["[1, 2 * 2, 3 + 3]", [1, 4, 6]]];
 
   arrayTestCases.forEach(([input, expected]) => {
-    it(`should evaluate array input (${input}) to ${expected.join()}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate array input (${input}) to ${expected.join()}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       expect(evaluated).toBeInstanceOf(Array);
       const evaluatedArray = evaluated as Array;
@@ -111,8 +111,8 @@ describe("Evaluator", () => {
   ];
 
   booleanTestCases.forEach(([input, expected]) =>
-    it(`should evaluate boolean input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate boolean input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       testBooleanObject(evaluated, expected);
     }),
@@ -129,8 +129,8 @@ describe("Evaluator", () => {
   ];
 
   bangOperatorTestCases.forEach(([input, expected]) =>
-    it(`should evaluate bang operation input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate bang operation input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       testBooleanObject(evaluated, expected);
     }),
@@ -147,8 +147,8 @@ describe("Evaluator", () => {
   ];
 
   ifExpressionTestCases.forEach(([input, expected]) =>
-    it(`should evaluate if expression input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate if expression input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       if (expected) {
         testIntegerObject(evaluated, expected);
@@ -167,8 +167,8 @@ describe("Evaluator", () => {
   ];
 
   returnStatementTestCases.forEach(([input, expected]) =>
-    it(`should evaluate return statement input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate return statement input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       testIntegerObject(evaluated, expected);
     }),
@@ -191,8 +191,8 @@ describe("Evaluator", () => {
   ];
 
   errorTestCases.forEach(([input, expected]) =>
-    it(`should evaluate return statement input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate return statement input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       expect(evaluated).toBeInstanceOf(Error);
       expect((evaluated as Error).message).toBe(expected);
@@ -207,8 +207,8 @@ describe("Evaluator", () => {
   ];
 
   letStatementsTestCases.forEach(([input, expected]) =>
-    it(`should evaluate return statement input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate return statement input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       testIntegerObject(evaluated, expected);
     }),
@@ -220,8 +220,8 @@ describe("Evaluator", () => {
   ];
 
   functionTestCases.forEach(([input, expectedParams, expectedBody]) =>
-    it(`should evaluate function input (${input}) to params: ${expectedParams}, and body: ${expectedBody}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate function input (${input}) to params: ${expectedParams}, and body: ${expectedBody}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       expect(evaluated).toBeInstanceOf(Function);
       const functionEval = evaluated as Function;
@@ -250,8 +250,8 @@ addTwo(2);`,
   ];
 
   functionApplicationTestCases.forEach(([input, expected]) =>
-    it(`should evaluate function input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate function input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       testIntegerObject(evaluated, expected);
     }),
@@ -266,8 +266,8 @@ addTwo(2);`,
   ];
 
   builtinFunctionTestCases.forEach(([input, expected]) =>
-    it(`should call builtin function: input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should call builtin function: input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       switch (typeof expected) {
         case "number":
@@ -300,8 +300,8 @@ addTwo(2);`,
   ];
 
   arrayIndexTestCases.forEach(([input, expected]) =>
-    it(`should evaluate array by index with input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate array by index with input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       switch (typeof expected) {
         case "number":
@@ -343,8 +343,8 @@ addTwo(2);`,
   ];
 
   arrayBuiltinTestCases.forEach(([input, expected], i) =>
-    it(`should run builtin array functions (${i})`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should run builtin array functions (${i})`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       expect(evaluated).toBeInstanceOf(Array);
       const evaluatedArray = evaluated as Array;
@@ -355,7 +355,7 @@ addTwo(2);`,
     }),
   );
 
-  it("should parse hash", () => {
+  it("should parse hash", async () => {
     const input = `let two = "two";
     {
         "one": 10 - 9,
@@ -375,7 +375,7 @@ addTwo(2);`,
       [false, 6],
     ]);
 
-    const evaluated = setupEvaluator(input);
+    const evaluated = await setupEvaluator(input);
 
     expect(evaluated).toBeInstanceOf(Hash);
     const evaluatedHash = evaluated as Hash;
@@ -401,8 +401,8 @@ addTwo(2);`,
   ];
 
   hashIndexTestCases.forEach(([input, expected]) =>
-    it(`should evaluate hash by index with input (${input}) to ${expected}`, () => {
-      const evaluated = setupEvaluator(input);
+    it(`should evaluate hash by index with input (${input}) to ${expected}`, async () => {
+      const evaluated = await setupEvaluator(input);
 
       switch (typeof expected) {
         case "number":

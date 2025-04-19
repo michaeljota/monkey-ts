@@ -128,9 +128,9 @@ describe("Lexer", () => {
     const lexer = createLexer(input);
 
     expectedTokens.forEach((expectedToken) => {
-      const token = lexer.getToken();
+      const token = lexer.$currentToken();
       expect(token).toEqual(expectedToken);
-      lexer.next();
+      lexer.advanceToken();
     });
   });
 });

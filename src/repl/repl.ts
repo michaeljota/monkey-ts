@@ -25,7 +25,7 @@ Feel free to type in commands!
     }
 
     const lexer = createLexer(line);
-    const [program, errors] = parseProgram(lexer);
+    const [program, errors] = await parseProgram(lexer);
 
     if (errors) {
       console.log(`

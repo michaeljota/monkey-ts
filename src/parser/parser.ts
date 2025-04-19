@@ -1,4 +1,5 @@
-import { computed, event, state } from "signux";
+import { computed, event, state, type ComputedState, type Event } from "signux";
+import { microDebounce } from "signux/operators";
 import type { Lexer } from "::lexer/lexer";
 import { TokenType } from "::token";
 import {
@@ -26,8 +27,16 @@ import {
 
 import type { TokenTypeDictionary, PrefixParserFn, InfixParserFn } from "./types";
 import { getNextExpectedToken, getPrecedence } from "./helpers";
+import { waitUntil } from "::helpers";
 
-export function parseProgram(lexer: Lexer): Result<Program, string[]> {
+export type Parser = {
+  $program: ComputedState<Program>;
+  $errors: ComputedState<string[]>;
+  $done: ComputedState<boolean>;
+  start: Event;
+};
+
+export function createParser(lexer: Lexer): Parser {
   const addStatement = event<StatementUnion>();
   const $statements = state<StatementUnion[]>([])
     .on(addStatement, (statements, statement) => [...statements, statement])
@@ -37,28 +46,54 @@ export function parseProgram(lexer: Lexer): Result<Program, string[]> {
     .on(addError, (errors, error) => [...errors, error])
     .create();
 
-  const $hasErrors = computed(() => $errors().length > 0);
+  const $program = computed(() => new Program($statements()));
+  const $done = computed(() => lexer.$currentToken().type === TokenType.EOF);
 
-  while (lexer.getToken().type !== TokenType.EOF) {
+  const start = event();
+  const tick = event();
+  lexer.$currentToken.pipe(microDebounce()).subscribe(() => tick());
+
+  tick.subscribe(() => {
+    if ($done()) {
+      return;
+    }
+
     const [statement, err] = parseStatement(lexer);
-    lexer.next();
 
     if (err != null) {
       addError(err);
-      continue;
+    } else {
+      addStatement(statement);
     }
 
-    addStatement(statement);
+    lexer.advanceToken();
+  });
+
+  start.subscribe(() => lexer.restart());
+
+  return {
+    $errors,
+    $program,
+    $done,
+    start,
+  };
+}
+
+export async function parseProgram(lexer: Lexer): Promise<Result<Program, string[]>> {
+  const parser = createParser(lexer);
+  parser.start();
+
+  await waitUntil(parser.$done);
+
+  if (parser.$errors().length) {
+    return [, parser.$errors()];
   }
 
-  if ($hasErrors()) {
-    return [, $errors()];
-  }
-  return [new Program($statements())];
+  return [parser.$program()];
 }
 
 function parseStatement(lexer: Lexer): Result<StatementUnion, string> {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   switch (token.type) {
     case TokenType.LET:
       return parseLetStatement(lexer);
@@ -70,7 +105,7 @@ function parseStatement(lexer: Lexer): Result<StatementUnion, string> {
 }
 
 function parseLetStatement(lexer: Lexer): Result<LetStatement, string> {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
 
   const [nameToken, nameError] = getNextExpectedToken(lexer, TokenType.IDENT);
   if (nameError != null) {
@@ -84,7 +119,7 @@ function parseLetStatement(lexer: Lexer): Result<LetStatement, string> {
     return [, assignError];
   }
 
-  lexer.next();
+  lexer.advanceToken();
 
   const [expressionValue, expressionError] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
 
@@ -92,16 +127,16 @@ function parseLetStatement(lexer: Lexer): Result<LetStatement, string> {
     return [, expressionError];
   }
 
-  if (lexer.peek()?.type === TokenType.SEMICOLON) {
-    lexer.next();
+  if (lexer.$previewToken()?.type === TokenType.SEMICOLON) {
+    lexer.advanceToken();
   }
 
   return [new LetStatement(token, name, expressionValue)];
 }
 
 function parseReturnStatement(lexer: Lexer): Result<ReturnStatement, string> {
-  const token = lexer.getToken();
-  lexer.next();
+  const token = lexer.$currentToken();
+  lexer.advanceToken();
 
   const [expressionValue, error] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
 
@@ -109,15 +144,15 @@ function parseReturnStatement(lexer: Lexer): Result<ReturnStatement, string> {
     return [, error];
   }
 
-  if (lexer.peek()?.type === TokenType.SEMICOLON) {
-    lexer.next();
+  if (lexer.$previewToken()?.type === TokenType.SEMICOLON) {
+    lexer.advanceToken();
   }
 
   return [new ReturnStatement(token, expressionValue)];
 }
 
 function parseExpressionStatement(lexer: Lexer): Result<ExpressionStatement, string> {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
 
   const [expressionValue, error] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
 
@@ -125,8 +160,8 @@ function parseExpressionStatement(lexer: Lexer): Result<ExpressionStatement, str
     return [, error];
   }
 
-  if (lexer.peek()?.type === TokenType.SEMICOLON) {
-    lexer.next();
+  if (lexer.$previewToken()?.type === TokenType.SEMICOLON) {
+    lexer.advanceToken();
   }
 
   return [new ExpressionStatement(token, expressionValue)];
@@ -139,7 +174,7 @@ function parseBlockStatement(lexer: Lexer): Result<BlockStatement, string> {
     return [, nextError];
   }
 
-  lexer.next();
+  lexer.advanceToken();
 
   const [statements, error] = parseStatements(lexer);
   if (error != null) {
@@ -153,7 +188,7 @@ function parseStatements(
   lexer: Lexer,
   statements: StatementUnion[] = [],
 ): Result<StatementUnion[], string> {
-  if (lexer.getToken().type === TokenType.RBRACE) {
+  if (lexer.$currentToken().type === TokenType.RBRACE) {
     return [statements];
   }
 
@@ -162,7 +197,7 @@ function parseStatements(
     return [, error];
   }
 
-  lexer.next();
+  lexer.advanceToken();
   return parseStatements(lexer, [...statements, statement]);
 }
 
@@ -170,7 +205,7 @@ function parseExpression(
   lexer: Lexer,
   precedence: ExpressionPrecedence,
 ): Result<ExpressionUnion, string> {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const prefixParser = PrefixParserFns[token.type];
 
   if (!prefixParser) {
@@ -190,7 +225,7 @@ function parseExpressionWithInfix(
   precedence: ExpressionPrecedence,
   lexer: Lexer,
 ): Result<ExpressionUnion, string> {
-  const peekToken = lexer.peek();
+  const peekToken = lexer.$previewToken();
   if (
     !peekToken ||
     peekToken.type === TokenType.SEMICOLON ||
@@ -205,7 +240,7 @@ function parseExpressionWithInfix(
     return [expression];
   }
 
-  lexer.next();
+  lexer.advanceToken();
 
   const [newState, error] = infixParser(lexer, expression);
   if (error != null) {
@@ -216,12 +251,12 @@ function parseExpressionWithInfix(
 }
 
 const parseIdentifier: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   return [new Identifier(token, token.literal)];
 };
 
 const parseIntegerLiteral: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const value = Number.parseInt(token.literal, 10);
   const coercionChecker = Number(token.literal);
 
@@ -233,7 +268,7 @@ const parseIntegerLiteral: PrefixParserFn = (lexer) => {
 };
 
 const parseStringLiteral: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   return [new StringLiteral(token, token.literal)];
 };
 
@@ -243,7 +278,7 @@ const BooleanTypeToNativeMap: Partial<Record<TokenType, boolean>> = {
 };
 
 const parseBooleanExpression: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const value = BooleanTypeToNativeMap[token.type];
 
   if (value == null) {
@@ -254,7 +289,7 @@ const parseBooleanExpression: PrefixParserFn = (lexer) => {
 };
 
 const parseGroupedExpression: PrefixParserFn = (lexer) => {
-  lexer.next();
+  lexer.advanceToken();
   const [expression, error] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
   if (error != null) {
     return [, error];
@@ -269,10 +304,10 @@ const parseGroupedExpression: PrefixParserFn = (lexer) => {
 };
 
 const parsePrefixExpression: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const operator = token.literal;
 
-  lexer.next();
+  lexer.advanceToken();
 
   const [expression, error] = parseExpression(lexer, ExpressionPrecedence.PREFIX);
 
@@ -284,13 +319,13 @@ const parsePrefixExpression: PrefixParserFn = (lexer) => {
 };
 
 const parseIfExpression: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const [, expectedLParenError] = getNextExpectedToken(lexer, TokenType.LPAREN);
   if (expectedLParenError != null) {
     return [, expectedLParenError];
   }
 
-  lexer.next();
+  lexer.advanceToken();
   const [condition, error] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
 
   if (error != null) {
@@ -318,16 +353,16 @@ const parseIfExpression: PrefixParserFn = (lexer) => {
 };
 
 const parseElseExpression = (lexer: Lexer): Result<Maybe<BlockStatement>, string> => {
-  if (lexer.peek()?.type !== TokenType.ELSE) {
+  if (lexer.$previewToken()?.type !== TokenType.ELSE) {
     return [undefined];
   }
-  lexer.next();
+  lexer.advanceToken();
 
   return parseBlockStatement(lexer);
 };
 
 const parseFunctionLiteral: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
 
   const [parameters, error] = parseFunctionParameters(lexer);
   if (error != null) {
@@ -348,9 +383,9 @@ function parseFunctionParameters(lexer: Lexer): Result<Identifier[], string> {
     return [, nameError];
   }
 
-  lexer.next();
+  lexer.advanceToken();
 
-  if (lexer.getToken().type === TokenType.RPAREN) {
+  if (lexer.$currentToken().type === TokenType.RPAREN) {
     return [[]];
   }
 
@@ -369,15 +404,15 @@ const parseFunctionParametersList = (
   lexer: Lexer,
   parameters: Identifier[] = [],
 ): Ok<Identifier[]> => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const identifier = new Identifier(token, token.literal);
 
-  if (lexer.peek()?.type !== TokenType.COMMA) {
+  if (lexer.$previewToken()?.type !== TokenType.COMMA) {
     return [[...parameters, identifier]];
   }
 
-  lexer.next();
-  lexer.next();
+  lexer.advanceToken();
+  lexer.advanceToken();
   return parseFunctionParametersList(lexer, [...parameters, identifier]);
 };
 
@@ -390,12 +425,12 @@ const parseArgumentsList = (
     return [, error];
   }
 
-  if (lexer.peek()?.type !== TokenType.COMMA) {
+  if (lexer.$previewToken()?.type !== TokenType.COMMA) {
     return [[...argumentsList, argument]];
   }
 
-  lexer.next();
-  lexer.next();
+  lexer.advanceToken();
+  lexer.advanceToken();
   return parseArgumentsList(lexer, [...argumentsList, argument]);
 };
 
@@ -403,9 +438,9 @@ function parseExpressionList(
   lexer: Lexer,
   closerToken: TokenType,
 ): Result<ExpressionUnion[], string> {
-  lexer.next();
+  lexer.advanceToken();
 
-  if (lexer.getToken().type === closerToken) {
+  if (lexer.$currentToken().type === closerToken) {
     return [[]];
   }
 
@@ -423,7 +458,7 @@ function parseExpressionList(
 }
 
 const parseArrayLiteral: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const [argumentsList, error] = parseExpressionList(lexer, TokenType.RBRACKET);
   if (error != null) {
     return [, error];
@@ -438,11 +473,11 @@ const parseHashMap = (
   lexer: Lexer,
   pairs: NativeHashMap = new Map(),
 ): Result<NativeHashMap, string> => {
-  if (lexer.peek()?.type === TokenType.RBRACE) {
+  if (lexer.$previewToken()?.type === TokenType.RBRACE) {
     return [pairs];
   }
 
-  lexer.next();
+  lexer.advanceToken();
   const [keyExpression, keyError] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
   if (keyError != null) {
     return [, keyError];
@@ -453,7 +488,7 @@ const parseHashMap = (
     return [, error];
   }
 
-  lexer.next();
+  lexer.advanceToken();
 
   const [valueExpression, valueError] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
   if (valueError != null) {
@@ -462,7 +497,7 @@ const parseHashMap = (
 
   pairs.set(keyExpression, valueExpression);
 
-  if (lexer.peek()?.type !== TokenType.RBRACE) {
+  if (lexer.$previewToken()?.type !== TokenType.RBRACE) {
     const [, error] = getNextExpectedToken(lexer, TokenType.COMMA);
     if (error != null) {
       return [, error];
@@ -475,7 +510,7 @@ const parseHashMap = (
 };
 
 const parseHashLiteral: PrefixParserFn = (lexer) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
 
   const [hash, hashError] = parseHashMap(lexer);
   if (hashError != null) {
@@ -506,11 +541,11 @@ const PrefixParserFns: TokenTypeDictionary<PrefixParserFn> = {
 };
 
 const parseInfixExpression: InfixParserFn = (lexer, left) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
   const operator = token.literal;
   const precedence = getPrecedence(token.type);
 
-  lexer.next();
+  lexer.advanceToken();
 
   const [expression, error] = parseExpression(lexer, precedence);
 
@@ -522,7 +557,7 @@ const parseInfixExpression: InfixParserFn = (lexer, left) => {
 };
 
 const parseCallExpression: InfixParserFn = (lexer, functionIdentifier) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
 
   const [argumentsList, error] = parseExpressionList(lexer, TokenType.RPAREN);
 
@@ -534,9 +569,9 @@ const parseCallExpression: InfixParserFn = (lexer, functionIdentifier) => {
 };
 
 const parseIndexExpression: InfixParserFn = (lexer, left) => {
-  const token = lexer.getToken();
+  const token = lexer.$currentToken();
 
-  lexer.next();
+  lexer.advanceToken();
   const [indexExpression, indexError] = parseExpression(lexer, ExpressionPrecedence.LOWEST);
 
   if (indexError != null) {

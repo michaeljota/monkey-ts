@@ -1,4 +1,4 @@
-import { computed, event, state } from "signux";
+import { computed, event, state, type ComputedState } from "signux";
 import { TokenType, type Token } from "::token";
 import {
   whitespaceSkipper,
@@ -11,39 +11,69 @@ import {
 } from "./helpers";
 
 export type Lexer = {
-  getToken(): Token;
-  next(): void;
-  peek(): Maybe<Token>;
+  $currentToken: ComputedState<Token>;
+  $previewToken: ComputedState<Maybe<Token>>;
+  $lookbehindToken: ComputedState<Maybe<Token>>;
+  advanceToken(): void;
+  rewindToken(): void;
+  restart(): void;
 };
 
 export function createLexer(input: string): Lexer {
-  const advanceCursorTo = event<number>();
-  const $cursor = state(0)
-    .on(advanceCursorTo, (_, cursor) => cursor)
+  const advanceToken = event();
+  const rewindToken = event();
+  const restart = event();
+  const $cursorHistory = state<number[]>([])
+    .on(advanceToken, (history) => {
+      const cursor = history.at(-1) ?? 0;
+      const [, newCursor] = readToken(input, cursor);
+      return [...history, newCursor];
+    })
+    .on(rewindToken, ([...history]) => {
+      history.pop();
+      return history;
+    })
+    .on(restart, () => [])
     .create();
 
-  const $token = computed(() => {
-    const [token] = readNextToken(input, $cursor());
+  const $cursor = computed(() => $cursorHistory().at(-1) ?? 0);
+
+  const $currentToken = computed(() => {
+    const [token] = readToken(input, $cursor());
+    return token;
+  });
+
+  const $previewToken = computed(() => {
+    const [, nextCursor] = readToken(input, $cursor());
+    if (nextCursor >= input.length) {
+      return;
+    }
+    const [token] = readToken(input, nextCursor);
+    return token;
+  });
+
+  const $lookbehindToken = computed(() => {
+    const cursor = $cursorHistory().at(-1);
+    if (!cursor) {
+      return;
+    }
+    const [token] = readToken(input, cursor);
     return token;
   });
 
   return {
-    next: () => {
-      const [, newCursor] = readNextToken(input, $cursor());
-      advanceCursorTo(newCursor);
-    },
-    getToken: () => $token(),
-    peek: () => {
-      const [, newCursor] = readNextToken(input, $cursor());
-      const [token] = readNextToken(input, newCursor);
-      return token;
-    },
+    $currentToken,
+    $lookbehindToken,
+    $previewToken,
+    advanceToken,
+    rewindToken,
+    restart,
   };
 }
 
 type TokenWithNext = [token: Token, nextPosition: number];
 
-function readNextToken(input: string, startCursor: number): TokenWithNext {
+function readToken(input: string, startCursor: number): TokenWithNext {
   const cursor = whitespaceSkipper(startCursor, input);
 
   if (cursor >= input.length) {

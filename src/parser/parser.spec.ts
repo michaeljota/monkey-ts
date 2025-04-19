@@ -25,9 +25,10 @@ import {
 import { TokenType } from "::token";
 import { parseProgram } from "./parser";
 
-const setupProgram = (input: string): ReturnType<typeof parseProgram> => {
+const setupProgram = async (input: string): Promise<Result<Program, string[]>> => {
   const lexer = createLexer(input);
-  return parseProgram(lexer);
+  const result = await parseProgram(lexer);
+  return result;
 };
 
 function testResult<T, E>(result: Result<T, E>): asserts result is Ok<T> {
@@ -43,11 +44,10 @@ describe("Parser", () => {
       let foobar = 838383;
     `;
 
-    const lexer = createLexer(input);
     let program: Program;
 
-    expect(() => {
-      const result = parseProgram(lexer);
+    expect(async () => {
+      const result = await setupProgram(input);
       testResult(result);
       program = result[0];
     }).not.toThrow();
@@ -55,7 +55,7 @@ describe("Parser", () => {
     expect(program!.statements).toBeArrayOfSize(3);
   });
 
-  it("should parse let statements", () => {
+  it("should parse let statements", async () => {
     const input = `
       let x = 5;
       let y = 10;
@@ -64,8 +64,7 @@ describe("Parser", () => {
 
     const expectedIdentifiers = ["x", "y", "foobar"];
 
-    const lexer = createLexer(input);
-    const result = parseProgram(lexer);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
 
@@ -83,14 +82,14 @@ describe("Parser", () => {
     });
   });
 
-  it("should handle errors for let statements", () => {
+  it("should handle errors for let statements", async () => {
     const input = `
       let y 10;
       let 10;
     `;
 
     const expectedTokens = ["=", "IDENT"];
-    const [, errors] = setupProgram(input);
+    const [, errors] = await setupProgram(input);
 
     expect(errors).toBeArrayOfSize(2);
 
@@ -101,15 +100,14 @@ describe("Parser", () => {
     });
   });
 
-  it("should parse return statements", () => {
+  it("should parse return statements", async () => {
     const input = `
       return 1;
       return 50;
       return 7890;
     `;
 
-    const result = setupProgram(input);
-
+    const result = await setupProgram(input);
     testResult(result);
 
     const [program] = result;
@@ -135,9 +133,9 @@ describe("Parser", () => {
     expect(`${program}`).toBe("let foo = 50;");
   });
 
-  it("should parse identifier expressions", () => {
+  it("should parse identifier expressions", async () => {
     const input = `foobar;`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -145,9 +143,9 @@ describe("Parser", () => {
     testLiteralExpression(statement.expression, "foobar");
   });
 
-  it("should parse integer literal expressions", () => {
+  it("should parse integer literal expressions", async () => {
     const input = `5;`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -155,9 +153,9 @@ describe("Parser", () => {
     testLiteralExpression(statement.expression, 5);
   });
 
-  it("should parse string literal expressions", () => {
+  it("should parse string literal expressions", async () => {
     const input = `"hello world";`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -165,9 +163,9 @@ describe("Parser", () => {
     testLiteralExpression(statement.expression, "hello world");
   });
 
-  it("should parse boolean literal true expressions", () => {
+  it("should parse boolean literal true expressions", async () => {
     const input = `true;`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -175,9 +173,9 @@ describe("Parser", () => {
     testLiteralExpression(statement.expression, true);
   });
 
-  it("should parse boolean literal false expressions", () => {
+  it("should parse boolean literal false expressions", async () => {
     const input = `false;`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -185,9 +183,9 @@ describe("Parser", () => {
     testLiteralExpression(statement.expression, false);
   });
 
-  it("should parse array literal expressions", () => {
+  it("should parse array literal expressions", async () => {
     const input = "[1, 2 + 3, 4 * 5];";
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -200,9 +198,9 @@ describe("Parser", () => {
     testInfixExpression(arrayLiteral.elements[2], 4, "*", 5);
   });
 
-  it("should parse array index expressions", () => {
+  it("should parse array index expressions", async () => {
     const input = "myArray[1 + 1];";
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -213,7 +211,7 @@ describe("Parser", () => {
     testInfixExpression(indexExpression.index, 1, "+", 1);
   });
 
-  it("should parse hash expressions with string keys", () => {
+  it("should parse hash expressions with string keys", async () => {
     const input = '{ "one": 1, "two": 2, "three": 3 }';
 
     const expected = new Map([
@@ -222,7 +220,7 @@ describe("Parser", () => {
       ["three", 3],
     ]);
 
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -238,10 +236,10 @@ describe("Parser", () => {
     });
   });
 
-  it("should parse empty hash expressions", () => {
+  it("should parse empty hash expressions", async () => {
     const input = "{}";
 
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -251,9 +249,9 @@ describe("Parser", () => {
     expect(hashLiteral.pairs).toBeEmpty();
   });
 
-  it("should parse if expressions", () => {
+  it("should parse if expressions", async () => {
     const input = `if (x < y) { x }`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -276,9 +274,9 @@ describe("Parser", () => {
     expect(ifExpression.alternative).toBeUndefined();
   });
 
-  it("should parse if-else expressions", () => {
+  it("should parse if-else expressions", async () => {
     const input = `if (x < y) { x } else { y }`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -308,9 +306,9 @@ describe("Parser", () => {
     testIdentifier(alternativeStatement.expression, "y");
   });
 
-  it("should parse function literal expressions", () => {
+  it("should parse function literal expressions", async () => {
     const input = `fn(x,y) { x + y }`;
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -332,10 +330,10 @@ describe("Parser", () => {
     testInfixExpression(bodyStatement.expression, "x", "+", "y");
   });
 
-  it("should fail to parse function literal, if a parenthesis is missing", () => {
+  it("should fail to parse function literal, if a parenthesis is missing", async () => {
     const input = `fn(x,y { x + y }`;
 
-    const [, errors] = setupProgram(input);
+    const [, errors] = await setupProgram(input);
 
     expect(errors).not.toBeEmpty();
     expect(errors).toContain("Next token expected to be ), but found { instead.");
@@ -348,8 +346,8 @@ describe("Parser", () => {
   ];
 
   extendedFunctionTestCases.forEach(([input, expectedParams]) => {
-    it(`should parse function ${input} with ${expectedParams.length ? `arguments ${expectedParams}` : "no arguments"}`, () => {
-      const result = setupProgram(input);
+    it(`should parse function ${input} with ${expectedParams.length ? `arguments ${expectedParams}` : "no arguments"}`, async () => {
+      const result = await setupProgram(input);
       testResult(result);
       const [program] = result;
       const statement = getTestedBaseStatement(program);
@@ -364,9 +362,9 @@ describe("Parser", () => {
     });
   });
 
-  it("should parse call expressions", () => {
+  it("should parse call expressions", async () => {
     const input = "add(1, 2 * 3, 4 + 5);";
-    const result = setupProgram(input);
+    const result = await setupProgram(input);
     testResult(result);
     const [program] = result;
     const statement = getTestedBaseStatement(program);
@@ -390,8 +388,8 @@ describe("Parser", () => {
   ];
 
   unaryTestCases.forEach(([input, operator, value]) =>
-    it(`should parse unary operations ${input}`, () => {
-      const result = setupProgram(input);
+    it(`should parse unary operations ${input}`, async () => {
+      const result = await setupProgram(input);
       testResult(result);
       const [program] = result;
       const statement = getTestedBaseStatement(program);
@@ -418,8 +416,8 @@ describe("Parser", () => {
   ];
 
   binaryTestCases.forEach(([input, left, operator, right]) =>
-    it(`should parse binary operation ${input}`, () => {
-      const result = setupProgram(input);
+    it(`should parse binary operation ${input}`, async () => {
+      const result = await setupProgram(input);
       testResult(result);
       const [program] = result;
       const statement = getTestedBaseStatement(program);
@@ -465,8 +463,8 @@ describe("Parser", () => {
   ];
 
   precedenceGroupingTesting.forEach(([input, expected]) =>
-    it(`should parse and group operations by precedence ${input}`, () => {
-      const result = setupProgram(input);
+    it(`should parse and group operations by precedence ${input}`, async () => {
+      const result = await setupProgram(input);
       testResult(result);
       const [program] = result;
 
